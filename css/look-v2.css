@@ -1,0 +1,196 @@
+/* Look v2: the workbench design, layered over app.css (default since 2026-10-12; ?look=default shows the earlier look).
+   Loaded after app.css and only overrides it: same structure and identity
+   (light, calm, one accent, status colours only for status), with a more
+   harmonious neutral ramp, clearer type hierarchy, layered soft surfaces
+   instead of heavy lines, and one radius and spacing scale. */
+
+:root{
+  /* neutrals: a cool slate ramp, one step softer on lines, one step darker on muted text */
+  --bg:#F4F5F8; --panel:#FFFFFF; --sunk:#F8F9FB; --line:#E3E6EC; --line2:#EDEFF3; --hover:#F5F6F9;
+  --ink:#0E1525; --ink2:#2F3A4F; --mut:#5B6578; --faint:#8A93A5; --faint2:#CDD2DB;
+  /* accent: the same blue, a touch deeper and less saturated */
+  --acc:#3354D1; --acc2:#2541B0; --accbg:#EEF1FD; --accln:#CBD5F8;
+  /* status: same meanings, tuned for AA on their tints */
+  --pass:#0B7A55; --passbg:#E6F5EE; --fail:#BE3128; --failbg:#FCEDEB; --wait:#A9570A; --waitbg:#FDF3E3;
+  --run:#3354D1; --runbg:#EEF1FD; --rew:#6847D0; --rewbg:#F2EEFC; --none:#5B6578; --nonebg:#F1F3F6;
+  --r:12px; --r2:8px; --r3:6px;
+  --shadow:0 1px 2px rgba(15,23,42,.04),0 1px 1px rgba(15,23,42,.02);
+  --shadow-h:0 2px 4px rgba(15,23,42,.04),0 8px 24px rgba(15,23,42,.07);
+  --shadow2:0 4px 12px rgba(15,23,42,.06),0 20px 48px rgba(15,23,42,.14);
+  --ring:0 0 0 3px rgba(51,84,209,.18);
+  --edge:rgba(15,23,42,.075);
+}
+body{font-feature-settings:'tnum' 0;text-rendering:optimizeLegibility;color:var(--ink)}
+::selection{background:#D9E1FB}
+:focus-visible{outline:none;box-shadow:var(--ring),0 0 0 1px var(--acc);border-radius:6px}
+.num{font-variant-numeric:tabular-nums slashed-zero}
+
+/* ---------------------------------------------------------------- frame */
+.side{background:#FAFBFC;border-right:1px solid var(--edge)}
+.brand{padding:18px 20px 16px}
+.brand .mark{width:30px;height:30px;border-radius:9px;background:linear-gradient(155deg,#2A3550,#0E1525);box-shadow:0 1px 2px rgba(15,23,42,.18),inset 0 1px 0 rgba(255,255,255,.12)}
+.brand .t{font-size:14.5px;font-weight:650;letter-spacing:-.1px}
+.brand .s{font-size:11.5px;color:var(--faint);margin-top:2px}
+.nav{padding:4px 12px 12px}
+.nav .cap{font-size:11px;font-weight:600;color:var(--faint);padding:16px 10px 6px;letter-spacing:.6px}
+.nav a{height:32px;color:var(--ink2);font-size:13.5px;border-radius:var(--r2);transition:background .12s,color .12s}
+.nav a svg{color:var(--faint);transition:color .12s}
+.nav a:hover{background:rgba(15,23,42,.04);color:var(--ink)}
+.nav a:hover svg{color:var(--ink2)}
+.nav a.on{background:var(--panel);color:var(--ink);font-weight:600;box-shadow:0 0 0 1px var(--edge),0 1px 2px rgba(15,23,42,.06)}
+.nav a.on svg{color:var(--acc)}
+.nav a .n{font:500 11px var(--mono);color:var(--faint);padding:0 6px;border-radius:999px;line-height:18px}
+.nav a .n.hot{color:var(--wait);background:var(--waitbg)}
+.nav a.proj{min-height:30px;font-size:13px;color:var(--ink2)}
+.nav a.proj .dot{width:6px;height:6px}
+.nav a.proj.on{color:var(--ink)}
+.nav a.proj.child.on{color:var(--ink)}
+.nav .proj.more{color:var(--faint)}
+.side .foot{border-top:1px solid var(--edge)}
+.mode{border-radius:var(--r2);box-shadow:inset 0 0 0 1px var(--accln)}
+.mode.live-w{box-shadow:inset 0 0 0 1px #F2C4BF}
+.topbar{background:rgba(244,245,248,.82);border-bottom:1px solid var(--edge)}
+.crumbs b{font-weight:600;color:var(--ink)}
+.page{padding:32px 32px 64px}
+
+/* ---------------------------------------------------------------- headers */
+.ph{margin-bottom:24px}
+.ph h1{font-size:24px;font-weight:650;letter-spacing:-.4px;line-height:1.25;color:var(--ink)}
+.ph .sub{margin-top:6px;font-size:13.5px;color:var(--mut)}
+.sh{margin:0 0 12px}
+.sh h2{font-size:15px;font-weight:650;letter-spacing:-.1px}
+.sh .sub{color:var(--faint);font-size:12.5px}
+
+/* ---------------------------------------------------------------- surfaces */
+.card{border:1px solid var(--edge);box-shadow:var(--shadow)}
+.card .hd{padding:14px 20px;border-bottom:1px solid var(--line2)}
+.card>.hd:first-child{background:linear-gradient(180deg,#FBFCFD,#FFFFFF);border-radius:var(--r) var(--r) 0 0}
+.card .hd h3{font-size:14px;font-weight:650;letter-spacing:-.1px}
+.card .bd{padding:16px 20px}
+.card.pad{padding:20px 22px}
+.card.link{transition:box-shadow .18s,transform .18s,border-color .18s}
+.card.link:hover{border-color:rgba(15,23,42,.1);box-shadow:var(--shadow-h);transform:translateY(-1px)}
+.note{background:var(--sunk);border:1px solid var(--line2);border-radius:var(--r2)}
+.note.acc{background:var(--accbg);border-color:var(--accln)}
+.note.wait{border-color:#F2D7AC}
+.hr{background:var(--line2)}
+.decision{border-color:#F0D9B5;background:linear-gradient(180deg,#FFFAF2 0,#FFFFFF 120px);box-shadow:var(--shadow),inset 0 2px 0 #F0C27F}
+
+/* stat tiles: a quiet label, a confident number, a muted note */
+.stats{gap:16px}
+.stat{padding:18px 20px 16px;border:1px solid var(--edge);box-shadow:var(--shadow);position:relative;transition:box-shadow .18s,transform .18s}
+a.stat:hover{border-color:rgba(15,23,42,.1);box-shadow:var(--shadow-h)}
+.stat .k{font-size:12.5px;color:var(--mut);font-weight:500}
+.stat .v{margin-top:8px;font:600 30px/1.05 var(--sans);font-variant-numeric:tabular-nums;letter-spacing:-.8px;color:var(--ink)}
+.stat .s{margin-top:8px;font-size:12px;color:var(--faint);line-height:1.6}
+
+/* ---------------------------------------------------------------- status */
+.pill{height:22px;padding:0 9px 0 8px;font-weight:550;box-shadow:inset 0 0 0 1px color-mix(in srgb,currentColor 16%,transparent)}
+.pill::before{width:6px;height:6px}
+.pill.plain{padding:0 9px}
+.tag{height:20px;padding:0 7px;border-radius:var(--r3);background:var(--nonebg);color:var(--mut);box-shadow:inset 0 0 0 1px rgba(15,23,42,.05)}
+.tag.acc{background:var(--accbg);color:var(--acc2);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--acc) 14%,transparent)}
+.tag.warn{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--wait) 16%,transparent)}
+.live i{box-shadow:0 0 0 3px color-mix(in srgb,var(--pass) 16%,transparent)}
+
+/* ---------------------------------------------------------------- controls */
+.btn{border:1px solid var(--line);box-shadow:0 1px 1px rgba(15,23,42,.04);color:var(--ink2);font-weight:500;transition:border-color .12s,background .12s,box-shadow .12s}
+.btn:hover:not(:disabled){border-color:var(--faint2);background:var(--panel);box-shadow:0 1px 3px rgba(15,23,42,.08)}
+.btn:active:not(:disabled){background:var(--hover);box-shadow:none}
+.btn.pri{background:var(--ink);border-color:var(--ink);box-shadow:0 1px 2px rgba(15,23,42,.2),inset 0 1px 0 rgba(255,255,255,.1)}
+.btn.pri:hover:not(:disabled){background:#1C2538;border-color:#1C2538}
+.btn.acc{background:var(--acc);border-color:var(--acc2);box-shadow:0 1px 2px rgba(37,65,176,.25),inset 0 1px 0 rgba(255,255,255,.14)}
+.btn.acc:hover:not(:disabled){background:var(--acc2);border-color:var(--acc2);box-shadow:0 2px 6px rgba(37,65,176,.28)}
+.btn.ghost{box-shadow:none}
+.btn.ghost:hover:not(:disabled){background:rgba(15,23,42,.045);box-shadow:none;border-color:transparent}
+.btn.danger:hover:not(:disabled){border-color:#F0BAB4;background:var(--failbg)}
+.cmd-btn kbd,.nav .proj.more kbd{background:var(--panel);border-color:var(--line);box-shadow:0 1px 0 var(--line)}
+.tabs{gap:2px;border-bottom:1px solid var(--line)}
+.tabs a,.tabs button{padding:0 14px;color:var(--mut);font-weight:500;transition:color .12s}
+.tabs .on{color:var(--ink);border-bottom-color:var(--acc);font-weight:600}
+.tabs .n{font:500 11px var(--mono);color:var(--faint);background:var(--line2);padding:0 6px;border-radius:999px;line-height:18px}
+.tabs .on .n{background:var(--accbg);color:var(--acc2)}
+.seg{padding:3px;background:#EAECF1;border-radius:var(--r2);box-shadow:inset 0 1px 1px rgba(15,23,42,.04)}
+.seg button,.seg a{border-radius:6px;font-weight:500;transition:color .12s,background .12s}
+.seg button.on,.seg a.on{background:var(--panel);color:var(--ink);box-shadow:0 1px 2px rgba(15,23,42,.1),0 0 0 1px rgba(15,23,42,.04)}
+.seg button:hover:not(.on),.seg a:hover:not(.on){color:var(--ink)}
+input[type=text],input[type=number],input[type=search],textarea,select{border-color:var(--line);box-shadow:0 1px 1px rgba(15,23,42,.03);transition:border-color .12s,box-shadow .12s}
+input:hover,textarea:hover,select:hover{border-color:var(--faint2)}
+input:focus,textarea:focus,select:focus{border-color:var(--acc);box-shadow:var(--ring)}
+.check{border-color:var(--line)}
+.period-m a,.vf-chip{border-color:var(--line);box-shadow:0 1px 1px rgba(15,23,42,.03);font-weight:500}
+.period-m a.on{box-shadow:inset 0 0 0 1px var(--accln)}
+.vf-chip.on{background:var(--panel);border-color:var(--faint2);box-shadow:0 1px 3px rgba(15,23,42,.08)}
+.pager a.on{background:var(--ink);border-color:var(--ink)}
+
+/* ---------------------------------------------------------------- lists and tables */
+.list>*{padding:13px 20px;border-bottom:1px solid var(--line2);transition:background .12s}
+.list .t{font-weight:500;color:var(--ink)}
+.list .m{color:var(--mut)}
+.kv dt{color:var(--faint)}
+table.t th{font-weight:600;color:var(--mut);font-size:12px;background:var(--sunk);padding:9px 14px;border-bottom:1px solid var(--line2)}
+table.t th:first-child{border-top-left-radius:var(--r)}
+table.t th:last-child{border-top-right-radius:var(--r)}
+table.t td{padding:11px 14px;border-bottom:1px solid var(--line2)}
+.bar{height:6px;background:var(--line2);border-radius:999px}
+.mini-steps{gap:4px}
+.mini-steps i{height:4px;border-radius:999px;background:var(--line2)}
+
+/* ---------------------------------------------------------------- stepper */
+.step .c{border-color:var(--faint2)}
+.step.done .c{box-shadow:0 0 0 3px var(--passbg)}
+.step.cur .c{background:var(--accbg)}
+.steps .ln{height:2px;border-radius:2px;background:var(--line2)}
+
+/* ---------------------------------------------------------------- project cards */
+.pcard h3{font-size:16px;font-weight:650;letter-spacing:-.2px}
+.pcard .id{color:var(--faint);font-size:11.5px}
+.pcard .line b{color:var(--faint);font-weight:500}
+.pcard .foot{border-top:1px solid var(--line2);margin-top:16px;flex-wrap:wrap;row-gap:8px}
+.pcard .foot>.tiny{flex:1 1 160px;min-width:0}
+.pcard .top>.col{flex-shrink:0}
+
+/* ---------------------------------------------------------------- hypothesis tree on a dotted canvas */
+.card:has(>.tree){background-color:#FCFCFD;background-image:radial-gradient(circle,rgba(15,23,42,.085) 1px,transparent 1.2px);background-size:18px 18px;background-position:-1px -1px}
+.tree .kids>li::before,.tree .kids>li::after,.tree .kids::before{border-color:#CFD5DF}
+.hnode{border:1px solid var(--edge);box-shadow:var(--shadow);border-radius:var(--r)}
+.hnode:hover{border-color:rgba(15,23,42,.12);box-shadow:var(--shadow-h)}
+.hnode.on{border-color:var(--acc);box-shadow:var(--ring),var(--shadow-h)}
+.hnode.root{border:1.5px solid var(--ink2)}
+.hnode .id{color:var(--mut)}
+
+/* ---------------------------------------------------------------- overlays */
+.scrim{background:rgba(15,23,42,.24);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px)}
+.drawer{box-shadow:var(--shadow2);border-left:1px solid var(--edge)}
+.drawer .df{background:var(--sunk)}
+.modal{border-radius:14px;box-shadow:var(--shadow2),0 0 0 1px var(--edge)}
+.dsec>h4{font-size:12px;font-weight:600;color:var(--faint);letter-spacing:.4px}
+.toast{border-radius:10px;background:#141B2D}
+.md code{background:var(--nonebg);box-shadow:inset 0 0 0 1px rgba(15,23,42,.05)}
+.md blockquote{border-left-color:var(--accln)}
+
+/* ---------------------------------------------------------------- boards and panels with flat grey fills */
+.kcol,.khd,.idea-col{background:#ECEEF2}
+.kcard,.idea-card{border:1px solid var(--edge);box-shadow:var(--shadow)}
+.kcard:hover,.idea-card:hover{box-shadow:var(--shadow-h)}
+.u-hero,.u-kpi,.exec,.canvas,.console,.lf-chain,.gcard,.tour-cap{border:1px solid var(--edge);box-shadow:var(--shadow)}
+.u-hero .v,.u-kpi .v,.lf-step .v,.lf-hero,.lf-hero2{font-variant-numeric:tabular-nums;letter-spacing:-.6px}
+.gpu{border:1px solid var(--line2);border-radius:var(--r)}
+.gpu-head{background:var(--sunk)}
+.gpu-id{border-color:var(--line);box-shadow:0 1px 1px rgba(15,23,42,.04)}
+.occ-track{border-radius:6px}
+.occ-bar{border-radius:4px}
+.dl-date,.bind{border-color:var(--line2)}
+
+/* ---------------------------------------------------------------- phones: keep app.css spacing where it is tighter */
+@media (max-width:860px){
+  .page{padding:20px max(16px,env(safe-area-inset-right)) 48px max(16px,env(safe-area-inset-left))}
+  .ph h1{font-size:21px}
+  .stats{gap:10px}
+  .stat{padding:14px 15px 13px}
+  .stat .v{font-size:26px}
+  .card.pad{padding:16px 16px}
+  .list>*{padding:12px 16px}
+  .side{background:#FAFBFC}
+}
+@media (pointer:coarse){.nav a{height:40px}}

@@ -1,0 +1,192 @@
+/* The system map (about page). Its own look: a dark glass stage, bright type,
+   glowing streams. Laid out on a fixed 1600 × 1090 stage that scales to fit. */
+.smap{position:relative;width:100%;overflow:hidden;border-radius:18px;background:#05080F;box-shadow:0 30px 90px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.06)}
+.smap-stage{position:absolute;left:0;top:0;width:1600px;height:1090px;transform-origin:0 0;font-family:'IBM Plex Sans','Noto Sans SC',system-ui,sans-serif;color:#EEF3FB;text-align:left;-webkit-font-smoothing:antialiased}
+.smap-bg{position:absolute;inset:0;background:
+  radial-gradient(620px 420px at 338px 478px,rgba(52,211,153,.10),transparent 70%),
+  radial-gradient(620px 420px at 985px 478px,rgba(244,114,182,.10),transparent 70%),
+  radial-gradient(900px 500px at 655px 140px,rgba(56,189,248,.07),transparent 70%),
+  radial-gradient(rgba(148,163,184,.13) 1px,transparent 1.2px) 0 0/24px 24px,
+  linear-gradient(180deg,#0A1120 0%,#060A14 60%,#04060C 100%)}
+.smap-canvas{position:absolute;left:0;top:0;pointer-events:none}
+.smap-lane{position:absolute;border:1px solid rgba(255,255,255,.07);border-radius:20px;background:rgba(255,255,255,.018)}
+.smap-lane span{position:absolute;left:16px;top:10px;font:600 11px 'IBM Plex Mono',ui-monospace,monospace;letter-spacing:2.5px;text-transform:uppercase}
+.smap-lane.literature span{color:#7DD3FC}.smap-lane.research span{color:#6EE7B7}.smap-lane.learning span{color:#F9A8D4}.smap-lane.writing span{color:#FCD34D}.smap-lane.maintenance span{color:#CBD5E1}
+
+/* HUD */
+.smap-hud{position:absolute;left:24px;right:24px;top:18px;height:62px;display:flex;align-items:center;gap:28px}
+.smap-title{display:flex;flex-direction:column;gap:2px;min-width:170px}
+.smap-title b{font:700 19px 'IBM Plex Mono',monospace;letter-spacing:3px;color:#fff}
+.smap-title span{font:500 11px 'IBM Plex Mono',monospace;letter-spacing:2px;color:#7DD3FC}
+.smap-stats{display:flex;gap:26px;flex:1}
+.smap-stats>div{display:flex;flex-direction:column;gap:1px}
+.smap-stats b{font:600 22px 'IBM Plex Mono',monospace;color:#fff;letter-spacing:-.5px;display:flex;align-items:center;gap:7px}
+.smap-stats span{font-size:11.5px;color:#9AA8BF}
+.smap-stats .live b{color:#6EE7B7}
+.smap-stats .live i,.smap-tick .live i{width:8px;height:8px;border-radius:50%;background:#34D399;box-shadow:0 0 10px #34D399;animation:smapPulse 1.6s infinite}
+@keyframes smapPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.7)}}
+.smap-modes{display:flex;gap:4px;padding:4px;border-radius:999px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1)}
+.smap-modes button{border:0;background:none;color:#B5C1D6;font:500 13px inherit;font-family:inherit;padding:8px 16px;border-radius:999px;cursor:pointer;white-space:nowrap}
+.smap-modes button:hover{color:#fff}
+.smap-modes button.on{background:#fff;color:#0A0F1A;font-weight:600;box-shadow:0 0 22px rgba(125,211,252,.35)}
+
+/* module cards */
+.smap-card{position:absolute;display:flex;flex-direction:column;justify-content:center;gap:3px;padding:0 12px 0 15px;border-radius:10px;cursor:pointer;font-family:inherit;text-align:left;color:#fff;
+  background:linear-gradient(180deg,rgba(26,36,58,.96),rgba(14,20,36,.96));border:1px solid var(--c2);
+  box-shadow:inset 3px 0 0 var(--c),0 10px 26px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.07);transition:opacity .3s,box-shadow .2s,border-color .2s,transform .2s}
+.smap-card b{font-size:15px;font-weight:600;letter-spacing:.2px;white-space:nowrap}
+.smap-card .meta{display:flex;align-items:center;gap:5px;font:500 10.5px 'IBM Plex Mono','Noto Sans SC',monospace;color:#AEB9CC;white-space:nowrap;letter-spacing:-.2px;overflow:hidden}
+.smap-card .meta i{width:7px;height:7px;border-radius:50%;display:inline-block;margin-left:2px}
+.smap-card:hover,.smap-card.on{border-color:var(--c);box-shadow:inset 3px 0 0 var(--c),0 0 0 1px var(--c),0 0 28px var(--c2),0 10px 26px rgba(0,0,0,.45);transform:translateY(-1px)}
+.smap-card em{position:absolute;top:-8px;font:600 10.5px 'IBM Plex Mono',monospace;font-style:normal;min-width:18px;height:18px;padding:0 5px;border-radius:9px;display:grid;place-items:center}
+.smap-card em.run{right:-6px;background:#34D399;color:#04260F;box-shadow:0 0 12px #34D399;animation:smapPulse 1.8s infinite}
+.smap-card em.open{right:20px;background:#FBBF24;color:#2A1B00}
+.smap-card.dim,.smap-store.dim,.smap-crystal.dim,.smap-gate.dim{opacity:.22}
+
+/* stores, the playbook crystal, you */
+.smap-store{position:absolute;pointer-events:none;transition:opacity .3s}
+.smap-store .lab{position:absolute;left:50%;top:100%;transform:translateX(-50%);margin-top:4px;text-align:center;white-space:nowrap;display:flex;flex-direction:column;gap:2px}
+.smap-store .lab b{font-size:16px;font-weight:700;letter-spacing:1px}
+.smap-store .lab span{font:500 11.5px 'IBM Plex Mono',monospace;color:#C9D3E3}
+.smap-store .lab em{font-style:normal;font-size:11.5px;color:var(--c)}
+.smap-crystal{position:absolute;padding:12px 14px 10px;border-radius:14px;background:linear-gradient(180deg,rgba(54,40,96,.55),rgba(20,16,40,.85));border:1px solid rgba(196,181,253,.55);box-shadow:0 0 40px rgba(167,139,250,.25),inset 0 1px 0 rgba(255,255,255,.1);transition:opacity .3s;display:flex;flex-direction:column;gap:7px}
+.smap-crystal .h{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:2px}
+.smap-crystal .h b{font-size:15px}.smap-crystal .h span{font:700 18px 'IBM Plex Mono',monospace;color:#DDD6FE}
+.smap-crystal .row{display:grid;grid-template-columns:72px 1fr;white-space:nowrap;align-items:center;gap:8px;font-size:11px;color:#D4CCF5}
+.smap-crystal .row i{height:5px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden}
+.smap-crystal .row u{display:block;height:100%;background:linear-gradient(90deg,#A78BFA,#F0ABFC);box-shadow:0 0 8px #A78BFA}
+.smap-elab{position:absolute;transform:translate(-50%,-50%);padding:3px 9px;border-radius:999px;background:rgba(5,8,15,.92);border:1px solid var(--c);color:#fff;font-size:11.5px;white-space:nowrap;pointer-events:none;box-shadow:0 0 14px rgba(0,0,0,.6);z-index:3}
+
+/* panel */
+.smap-panel{position:absolute;left:1262px;top:96px;width:314px;height:668px;padding:18px 18px;border-radius:18px;background:linear-gradient(180deg,rgba(18,26,44,.88),rgba(10,14,26,.92));border:1px solid rgba(255,255,255,.1);box-shadow:0 20px 50px rgba(0,0,0,.45);overflow:hidden;display:flex;flex-direction:column;gap:12px;z-index:4}
+.smap-panel .muted{color:#94A3B8}
+.p-head{display:flex;align-items:center}
+.p-head .lane{font:600 11px 'IBM Plex Mono',monospace;letter-spacing:2px;text-transform:uppercase;color:var(--c,#7DD3FC)}
+.p-head .lane.plain{color:#7DD3FC}
+.p-head .x{margin-left:auto;border:0;background:rgba(255,255,255,.08);color:#fff;width:26px;height:26px;border-radius:50%;cursor:pointer;font-size:16px;line-height:1}
+.smap-panel h3{margin:0;font-size:24px;font-weight:700;color:#fff}
+.smap-panel .mono{font:500 12px 'IBM Plex Mono',monospace;color:#8FA0BA;margin-top:-8px}
+.p-bind{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.p-bind>div{padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);display:flex;flex-direction:column;gap:2px}
+.p-bind span{font-size:10.5px;color:#8FA0BA}.p-bind b{font-size:14px;display:flex;align-items:center;gap:6px}.p-bind em{font:500 10.5px 'IBM Plex Mono',monospace;color:#8FA0BA;font-style:normal}
+.p-bind i{width:8px;height:8px;border-radius:50%;display:inline-block}
+.p-key{padding:10px 12px;border-radius:10px;border:1px solid var(--c);background:rgba(255,255,255,.03);font:600 13px 'IBM Plex Mono','Noto Sans SC',monospace;color:#fff;box-shadow:0 0 22px rgba(0,0,0,.3),inset 0 0 18px rgba(255,255,255,.02)}
+.p-intro{margin:0;font-size:13px;line-height:1.7;color:#C3CDDD}
+.p-intro.small{font-size:12px;color:#9AA8BF}
+.p-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.p-stats>div{padding:9px 12px;border-radius:10px;background:rgba(255,255,255,.04);display:flex;flex-direction:column}
+.p-stats b{font:600 20px 'IBM Plex Mono',monospace;color:#fff}.p-stats span{font-size:11px;color:#8FA0BA}
+.p-stats b.amber{color:#FCD34D}.p-stats b.green{color:#6EE7B7}
+.p-sec{display:flex;flex-direction:column;gap:6px}.p-sec>span{font-size:11px;color:#8FA0BA}.p-sec>div{display:flex;flex-wrap:wrap;gap:6px}
+.smap-panel .chip{border:1px solid var(--c);background:rgba(255,255,255,.04);color:#fff;font-family:inherit;font-size:12px;padding:4px 10px;border-radius:999px;cursor:pointer}
+.smap-panel .chip:hover{background:rgba(255,255,255,.12)}
+.p-last{font:500 11px 'IBM Plex Mono',monospace;color:#8FA0BA}
+.p-link{margin-top:auto;color:#7DD3FC;font-size:13px;text-decoration:none}
+.p-agent{display:flex;flex-direction:column;gap:4px}
+.p-agent button{border:0;font-family:inherit;cursor:pointer;color:#fff;text-align:left}
+.a-head{display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:10px;background:rgba(255,255,255,.06)}
+.a-head i{width:10px;height:10px;border-radius:50%;box-shadow:0 0 10px currentColor}
+.a-head b{font-size:15px}.a-head span{margin-left:auto;font-size:11.5px;color:#9AA8BF}
+.r-row{display:grid;grid-template-columns:auto 1fr auto;align-items:baseline;gap:8px;padding:6px 12px 6px 30px;border-radius:8px;background:none}
+.r-row b{font-size:13px;font-weight:500}.r-row em{font:500 10.5px 'IBM Plex Mono',monospace;color:#8FA0BA;font-style:normal}.r-row span{font:600 12px 'IBM Plex Mono',monospace;color:#C3CDDD}
+.a-head:hover,.r-row:hover,.a-head.on,.r-row.on{background:rgba(125,211,252,.14)}
+.p-legend{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;font-size:12px;color:#C3CDDD;margin-top:auto;padding-top:12px;border-top:1px solid rgba(255,255,255,.08)}
+.p-legend div{display:flex;align-items:center;gap:8px}
+.p-legend i{width:26px;height:0;border-top:2px solid #7DD3FC}
+.p-legend .l-loop{border-top-style:dashed}.p-legend .l-data{border-top:2px dotted #6EE7B7}.p-legend .l-ref{border-top:2px dotted #C4B5FD}
+
+/* ticker */
+.smap-tick{position:absolute;left:24px;right:354px;bottom:16px;height:44px;display:flex;align-items:center;gap:14px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);padding:0 14px;overflow:hidden}
+.smap-tick .live{display:flex;align-items:center;gap:7px;font:700 11px 'IBM Plex Mono',monospace;letter-spacing:2px;color:#6EE7B7;flex-shrink:0}
+.smap-tick .track{flex:1;overflow:hidden;-webkit-mask-image:linear-gradient(90deg,transparent,#000 4%,#000 96%,transparent);mask-image:linear-gradient(90deg,transparent,#000 4%,#000 96%,transparent)}
+.smap-tick .belt{display:flex;gap:36px;width:max-content;animation:smapBelt 80s linear infinite}
+.smap-tick .belt span{display:inline-flex;align-items:center;gap:8px;font:500 12.5px 'IBM Plex Mono','Noto Sans SC',monospace;color:#AEB9CC;white-space:nowrap}
+.smap-tick .belt em{font-style:normal;color:#7DD3FC}.smap-tick .belt b{color:#fff;font-weight:600}
+.smap-tick .belt i{font-style:normal;color:#C3CDDD}
+.smap-tick .belt u{text-decoration:none;color:#8FA0BA}
+.smap-tick .belt s{text-decoration:none}.smap-tick .belt s.ok{color:#6EE7B7}.smap-tick .belt s.no{color:#FCD34D}
+@keyframes smapBelt{to{transform:translateX(-50%)}}
+@media (prefers-reduced-motion:reduce){.smap-tick .belt{animation:none}.smap-card em.run,.smap-stats .live i{animation:none}}
+/* where it sits on the about page */
+.smap-band{padding:16px 24px 72px;max-width:1648px;margin:0 auto}
+.smap-band .smap-cap{max-width:1100px;margin:0 auto 18px;text-align:center;color:#98A2B3;font-size:14px}
+@media (max-width:760px){.smap-band{padding:12px 0 48px}.smap{border-radius:0;overflow:hidden}.smap.zoomed{overflow-x:auto}}
+
+/* entrance: lanes, then cards left to right, once the map is in view */
+.smap .smap-card,.smap .smap-store,.smap .smap-crystal,.smap .smap-gate{opacity:0;transform:translateY(8px) scale(.98)}
+.smap.in .smap-card,.smap.in .smap-store,.smap.in .smap-crystal,.smap.in .smap-gate{animation:smapIn .7s cubic-bezier(.2,.8,.3,1) both;animation-delay:var(--d,0s)}
+.smap.in .smap-card.dim,.smap.in .smap-store.dim,.smap.in .smap-crystal.dim,.smap.in .smap-gate.dim{opacity:.22}
+.smap .smap-canvas{opacity:0;transition:opacity 1.6s ease .5s}.smap.in .smap-canvas{opacity:1}
+@keyframes smapIn{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
+.smap.in .smap-card.dim{animation:none;opacity:.22;transform:none}
+@media (prefers-reduced-motion:reduce){.smap .smap-card,.smap .smap-store,.smap .smap-crystal,.smap .smap-gate{opacity:1;transform:none}.smap.in .smap-card{animation:none}.smap .smap-canvas{opacity:1}}
+/* a mode's path, in the panel */
+.p-mode{display:flex;flex-direction:column;gap:8px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,.08)}
+.p-mode p{margin:0;font-size:13px;color:#E2E8F0;line-height:1.6}
+.p-mode .chain{display:flex;flex-wrap:wrap;align-items:center;gap:4px 3px}
+.p-mode .chain i{color:#64748B;font-style:normal;font-size:12px}
+.p-mode .chain button{border:1px solid var(--c);background:rgba(255,255,255,.04);color:#fff;font-family:inherit;font-size:11.5px;padding:2px 8px;border-radius:999px;cursor:pointer}
+.smap.in .dim{animation:none!important;opacity:.2!important;transform:none!important}
+
+.smap-swipe{display:none}
+@media (max-width:760px){.smap-swipe{display:block;position:absolute;left:24px;top:72px;font-size:16px;line-height:20px;color:#FCD34D;letter-spacing:1px}}
+/* stores are clickable; vendor marks and models */
+.smap-store,.smap-crystal,.smap-gate{font-family:inherit;cursor:pointer;text-align:left}
+.smap-store,.smap-crystal{color:#fff}
+.smap-store{pointer-events:auto;background:none;border:0;padding:0;border-radius:50%}
+.smap-store .lab{pointer-events:none}
+.smap-store:hover .lab b,.smap-store.on .lab b{color:var(--c);text-shadow:0 0 14px var(--c)}
+.smap-crystal:hover,.smap-crystal.on{border-color:#DDD6FE;box-shadow:0 0 0 1px #C4B5FD,0 0 54px rgba(167,139,250,.55),inset 0 1px 0 rgba(255,255,255,.1)}
+.smap-crystal .row>span{overflow:hidden;text-overflow:ellipsis}
+.vmark{flex-shrink:0;display:inline-block;vertical-align:-2px}
+.smap-card .meta .role{color:#C9D3E3}
+.smap-card .meta .model{color:#8FA0BA}
+.a-head .who{display:flex;flex-direction:column;line-height:1.2}
+.a-head .who em{font:500 11px 'IBM Plex Mono',monospace;color:#9AA8BF;font-style:normal}
+.a-head .n{margin-left:auto;font:600 12px 'IBM Plex Mono',monospace;color:#C3CDDD}
+.p-bind b .vmark{margin-right:1px}
+.smap-stage.on-edge{cursor:pointer}
+.a-head .who{align-items:flex-start;text-align:left;margin-left:0}
+.a-head .who em{margin:0}
+.smap-lane.writing span{top:auto;bottom:10px}
+.smap.done .smap-card,.smap.done .smap-store,.smap.done .smap-crystal,.smap.done .smap-gate{animation:none;opacity:1;transform:none}
+.smap.done .smap-card:hover,.smap.done .smap-card.on{transform:translateY(-1px)}
+.smap.done .dim{opacity:.2!important}
+.smap-store{z-index:1}.smap-card,.smap-crystal,.smap-gate{z-index:2}
+
+/* human decisions: a white gate on the flow, captioned below; the same mark beside the forest's name */
+.smap-gate{position:absolute;border-radius:50%;border:0;padding:0;display:grid;place-items:center;color:#0B1220;
+  background:radial-gradient(circle at 50% 35%,#FFFFFF,#D9E2F1 70%,#AFC0DA);
+  box-shadow:0 0 0 1px rgba(255,255,255,.9),0 0 0 5px rgba(255,255,255,.08),0 0 26px rgba(255,255,255,.45);transition:opacity .3s,box-shadow .2s}
+.smap-gate::before{content:'';position:absolute;inset:-9px;border-radius:50%;border:1px solid rgba(255,255,255,.35);animation:smapGate 3.2s ease-out infinite}
+@keyframes smapGate{from{transform:scale(.8);opacity:.9}to{transform:scale(1.5);opacity:0}}
+.smap-gate .person{width:22px;height:22px}
+.person{fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round}
+.person circle{fill:currentColor;stroke:none}
+.smap-gate .cap{position:absolute;top:calc(100% + 7px);left:50%;transform:translateX(-50%);white-space:nowrap;font:600 12px 'IBM Plex Sans','Noto Sans SC',sans-serif;letter-spacing:2px;color:#F1F5F9;text-shadow:0 1px 6px rgba(0,0,0,.8)}
+.smap-gate em{position:absolute;top:-6px;right:-8px;font:600 10.5px 'IBM Plex Mono',monospace;font-style:normal;min-width:18px;height:18px;padding:0 5px;border-radius:9px;display:grid;place-items:center;background:#FBBF24;color:#2A1B00}
+.smap-gate:hover,.smap-gate.on{box-shadow:0 0 0 2px var(--c),0 0 0 6px rgba(255,255,255,.12),0 0 46px rgba(255,255,255,.65)}
+.smap-store .lab b{display:inline-flex;align-items:center;justify-content:center;gap:8px}
+.hcheck{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:radial-gradient(circle at 50% 35%,#fff,#C9D5E8);color:#0B1220;box-shadow:0 0 14px rgba(255,255,255,.5)}
+.hcheck .person{width:14px;height:14px}
+.smap-panel .chip.human{display:inline-flex;align-items:center;gap:6px;border-color:#E2E8F0;cursor:default}
+.smap-panel .chip.human .person,.p-legend .l-gate .person{width:13px;height:13px}
+.p-legend .l-gate{display:inline-grid;place-items:center;width:26px;color:#fff}
+@media (prefers-reduced-motion:reduce){.smap-gate::before{animation:none;opacity:0}}
+/* maintenance hovers: backend upkeep pulses every module in a sweep; frontend upkeep lights the workbench chrome */
+@keyframes smapScan{0%,100%{box-shadow:inset 3px 0 0 var(--c),0 10px 26px rgba(0,0,0,.45)}12%{box-shadow:inset 3px 0 0 var(--c),0 0 0 1.5px #E2E8F0,0 0 26px rgba(226,232,240,.55)}30%{box-shadow:inset 3px 0 0 var(--c),0 10px 26px rgba(0,0,0,.45)}}
+.smap .smap-stage.scan-b .smap-card,.smap.done .smap-stage.scan-b .smap-card{animation:smapScan 2.6s linear infinite;animation-delay:calc(var(--sx) * 2.6s - 0.31s)}
+.smap-stage.scan-f .smap-panel,.smap-stage.scan-f .smap-tick{box-shadow:0 0 0 1px rgba(226,232,240,.55),0 0 34px rgba(226,232,240,.18)}
+.smap-lane.maintenance{background:rgba(255,255,255,.025)}
+/* the panel holds a mode's whole chain, both agents' roles and the legend without clipping */
+.smap-panel{gap:11px}
+.a-head{padding:7px 12px}
+.r-row{padding:3px 12px 3px 30px}
+.p-mode{gap:6px;padding-bottom:10px}
+.p-mode .chain{gap:4px 2px}
+.p-mode .chain button{font-size:11px;padding:1px 7px;line-height:1.55}
+.p-mode .chain i{font-size:11px}
+.p-legend{gap:4px 12px;padding-top:10px}
+/* phones: a button to switch between the whole map and a half-size, swipeable one */
+.smap-zoom{display:none}
+@media (max-width:760px){.smap-zoom{display:block;position:sticky;left:calc(100% - 78px);top:8px;float:right;margin:8px 10px -40px 0;z-index:20;height:30px;padding:0 12px;border-radius:999px;border:1px solid rgba(255,255,255,.25);background:rgba(10,14,26,.8);color:#E2E8F0;font:600 12px 'IBM Plex Sans','Noto Sans SC',sans-serif;backdrop-filter:blur(6px)}}
