@@ -5,6 +5,11 @@ import { go, href, useRoute } from './router.js';
 import { Hero, About } from './front.js';
 import * as api from './api.js';
 
+// Two separate sites share these pages: the lab server (campus network) and the public one.
+const SITE = window.PORTAL_CONFIG.site || 'cloud';
+const LAB_URL = window.PORTAL_CONFIG.labUrl || '';
+const siteName = () => (SITE === 'lab' ? L('校内站', 'Campus site') : L('校外站', 'Off-campus site'));
+
 const STATUS = {
   pending: ['待审核', 'Awaiting review', 'wait'],
   queued: ['排队中', 'Queued', 'queue'],
@@ -37,6 +42,7 @@ function Shell({ me, page, children, wide }) {
   return html`<div class="pt">
     <nav class="pt-nav">
       <a class="pt-brand" href=${href('/')}>${I('logo', { s: 19, c: '#fff', w: 1.8 })}<span>AI Scientist</span></a>
+      <span class=${'pt-site ' + SITE} title=${L('两个站的账号与任务互相独立', 'The two sites keep separate accounts and tasks')}>${siteName()}</span>
       <a class=${'hide-s' + (page === 'about' ? ' on' : '')} href=${href('/about')}>${L('系统介绍', 'About')}</a>
       ${me && html`<a class=${page === 'submit' ? 'on' : ''} href=${href('/submit')}>${L('提交任务', 'Submit')}</a>
         <a class=${page === 'tasks' || page === 'task' ? 'on' : ''} href=${href('/tasks')}>${L('我的任务', 'My tasks')}</a>`}
@@ -75,7 +81,7 @@ function Login({ q }) {
       setMsg({ text: L('注册成功。请先点击邮件中的确认链接，再回到这里登录。', 'Registered. Confirm the link in the e-mail we sent, then sign in here.') });
     } catch (err) {
       const m = problem(err);
-      setMsg({ bad: true, text: /invalid login/i.test(m) ? L('邮箱或密码不正确', 'Wrong e-mail or password') : /already registered/i.test(m) ? L('这个邮箱已注册，请直接登录', 'This e-mail is already registered, sign in instead') : m });
+      setMsg({ bad: true, text: /invalid login/i.test(m) ? L('邮箱或密码不正确', 'Wrong e-mail or password') + (SITE === 'cloud' ? L('。如果你的账号是在校内注册的，它不能在校外站登录，见下方说明。', '. If you registered on campus, that account does not work on this site; see the note below.') : '') : /already registered/i.test(m) ? L('这个邮箱已注册，请直接登录', 'This e-mail is already registered, sign in instead') : m });
     } finally { setBusy(false); }
   }
   return html`<${Shell} page="login">
@@ -97,6 +103,13 @@ function Login({ q }) {
         </form>
       </div>
       <p class="pt-fine">${L('本系统为邀请制，邀请码由管理员发放。', 'Access is by invitation. Invite codes come from the administrator.')}</p>
+      ${SITE === 'cloud' && html`<div class="pt-where">
+        <b>${L('你现在在校外站', 'You are on the off-campus site')}</b>
+        <p>${L('校内站和校外站的账号是分开的，在校内注册的账号不能在这里登录，校内提交的任务也不在这里显示。', 'The campus site and this one keep separate accounts: an account registered on campus cannot sign in here, and tasks submitted there are not shown here.')}</p>
+        <p>${L('要用校内账号：连接 NTU VPN 后打开', 'To use your campus account: connect to the NTU VPN, then open the')} <a href=${LAB_URL} target="_blank" rel="noopener">${L('校内站', 'campus site')}</a>${L('。', '.')}</p>
+        <p>${L('经常在校外使用：向管理员要一个校外站邀请码，在这里另注册一次，可以用同一个邮箱。', 'If you often work off campus: ask the administrator for an off-campus invite and register here as well; the same e-mail is fine.')}</p>
+      </div>`}
+      ${SITE === 'lab' && html`<p class="pt-fine">${L('这里是校内站，只能在校园网或 NTU VPN 内访问。校外站的账号与这里分开。', 'This is the campus site, reachable only on the campus network or the NTU VPN. Off-campus accounts are separate.')}</p>`}
     </div>
   <//>`;
 }
@@ -232,7 +245,8 @@ function Tasks({ me }) {
     <${Head} title=${L('我的任务', 'My tasks')}><a class="pt-btn pri" href=${href('/submit')}>${I('plus', { s: 15 })}${L('提交任务', 'Submit a task')}</a><//>
     ${d.error && html`<${Note} bad>${d.error}<//>`}
     ${d.loading ? html`<div class="pt-wait">${L('载入中', 'Loading')}</div>` : !tasks.length ? html`<div class="pt-empty">
-        <p>${L('还没有任务', 'No tasks yet')}</p><a class="pt-btn pri" href=${href('/submit')}>${L('提交第一个任务', 'Submit your first task')}</a></div>`
+        <p>${L('还没有任务', 'No tasks yet')}</p><a class="pt-btn pri" href=${href('/submit')}>${L('提交第一个任务', 'Submit your first task')}</a>
+        <p class="pt-fine">${SITE === 'cloud' ? L('这里只显示在校外站提交的任务；校内站的任务请连接 NTU VPN 后到校内站查看。', 'Only tasks submitted on the off-campus site appear here; for campus tasks, connect to the NTU VPN and open the campus site.') : L('这里只显示在校内站提交的任务。', 'Only tasks submitted on the campus site appear here.')}</p></div>`
       : html`<div class="pt-list">${tasks.map((t) => html`<a class="pt-row" href=${href('/task?id=' + t.id)}>
           <div class="main"><b class="ell">${t.title}</b>
             <span class="mut">${t.stages.map(title).join(' · ')}</span></div>
