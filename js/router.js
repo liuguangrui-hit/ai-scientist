@@ -20,6 +20,8 @@ addEventListener('click', (e) => {
   if (raw[0] === '#') { e.preventDefault(); document.getElementById(decodeURIComponent(raw.slice(1)))?.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
   const u = new URL(a.href);
   if (u.origin !== location.origin || !u.pathname.startsWith(BASE)) return;
+  // on the lab server the backend shares this address: its paths (file downloads) are not pages
+  if (a.hasAttribute('download') || /^\/(auth|rest|storage|realtime)\/v1\//.test(u.pathname)) return;
   e.preventDefault();
   go(u.pathname.slice(BASE.length) + u.search);
 });

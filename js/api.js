@@ -86,7 +86,8 @@ export function stages() {
 // ---------------------------------------------------------------- files
 // Stored as <owner>/<task>/input/<n>-<safe name>; the name as chosen is kept in task_files.
 const objectPath = (p) => p.split('/').map(encodeURIComponent).join('/');
-export const MAX_FILE = 50 * 1024 * 1024;
+export const MAX_MB = window.PORTAL_CONFIG.maxFileMB || 50;
+export const MAX_FILE = MAX_MB * 1024 * 1024;
 export async function attach(taskId, file, n) {
   const safe = file.name.normalize('NFKD').replace(/[^A-Za-z0-9._-]+/g, '_').replace(/^_+|_+$/g, '').slice(-80) || 'file';
   const path = `${session.user.id}/${taskId}/input/${Date.now().toString(36)}${n}-${safe}`;
@@ -102,5 +103,6 @@ export async function download(path, name) {
   const a = document.createElement('a');
   a.href = `${URL_}/storage/v1${r.signedURL}&download=${encodeURIComponent(name || '')}`;
   a.rel = 'noopener';
+  a.download = name || '';
   document.body.appendChild(a); a.click(); a.remove();
 }

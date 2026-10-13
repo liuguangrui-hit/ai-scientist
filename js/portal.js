@@ -128,7 +128,7 @@ function Files({ files, setFiles }) {
     const next = [...files];
     let w = '';
     for (const f of list) {
-      if (f.size > api.MAX_FILE) { w = L(`${f.name} 超过 50 MB，请改填数据位置`, `${f.name} is over 50 MB; give its location instead`); continue; }
+      if (f.size > api.MAX_FILE) { w = L(`${f.name} 超过 ${api.MAX_MB} MB，请改填数据位置`, `${f.name} is over ${api.MAX_MB} MB; give its location instead`); continue; }
       if (next.length >= 10) { w = L('最多附带 10 个文件', 'At most 10 files'); break; }
       if (!next.some((x) => x.name === f.name && x.size === f.size)) next.push(f);
     }
@@ -139,7 +139,7 @@ function Files({ files, setFiles }) {
       onDragOver=${(e) => { e.preventDefault(); e.currentTarget.classList.add('over'); }}
       onDragLeave=${(e) => e.currentTarget.classList.remove('over')}
       onDrop=${(e) => { e.preventDefault(); e.currentTarget.classList.remove('over'); add(e.dataTransfer.files); }}>
-      ${I('plus', { s: 18 })}<span>${L('点击选择或拖入文件，单个不超过 50 MB', 'Click or drop files here, up to 50 MB each')}</span>
+      ${I('plus', { s: 18 })}<span>${L(`点击选择或拖入文件，单个不超过 ${api.MAX_MB} MB`, `Click or drop files here, up to ${api.MAX_MB} MB each`)}</span>
       <input ref=${input} type="file" multiple hidden onChange=${(e) => { add(e.target.files); e.target.value = ''; }} />
     </div>
     ${files.map((f, i) => html`<div class="pt-file">${I('file', { s: 15 })}<span class="ell">${f.name}</span><span class="mut">${size(f.size)}</span>
@@ -209,7 +209,7 @@ function Submit({ me }) {
       <section class="pt-card">
         <div class="pt-sec"><h2><em>3</em>${L('文件与数据', 'Files and data')}</h2></div>
         <${Files} files=${files} setFiles=${setFiles} />
-        <${Field} label=${L('大数据的位置', 'Where large data lives')} hint=${L('超过 50 MB 的数据不上传，填服务器路径或下载链接', 'Data over 50 MB is not uploaded; give a server path or a link')}>
+        <${Field} label=${L('大数据的位置', 'Where large data lives')} hint=${L(`超过 ${api.MAX_MB} MB 的数据不上传，填服务器路径或下载链接`, `Data over ${api.MAX_MB} MB is not uploaded; give a server path or a link`)}>
           <textarea rows="2" maxlength="2000" value=${f.data_note} onInput=${put('data_note')}></textarea><//>
       </section>
 
