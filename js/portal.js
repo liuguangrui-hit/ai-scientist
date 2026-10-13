@@ -8,7 +8,11 @@ import * as api from './api.js';
 // Two separate sites share these pages: the lab server (campus network) and the public one.
 const SITE = window.PORTAL_CONFIG.site || 'cloud';
 const LAB_URL = window.PORTAL_CONFIG.labUrl || '';
-const siteName = () => (SITE === 'lab' ? L('校内站', 'Campus site') : L('校外站', 'Off-campus site'));
+const CLOUD_URL = window.PORTAL_CONFIG.cloudUrl || '';
+const OTHER = SITE === 'lab' ? 'cloud' : 'lab';
+const nameOf = (site) => (site === 'lab' ? L('校内站', 'Campus site') : L('校外站', 'Off-campus site'));
+const siteName = () => nameOf(SITE);
+const Where = ({ site }) => html`<span class=${'pt-site sm ' + site}>${site === 'lab' ? L('校内', 'Campus') : L('校外', 'Off-campus')}</span>`;
 
 const STATUS = {
   pending: ['待审核', 'Awaiting review', 'wait'],
@@ -74,7 +78,9 @@ function Login({ q }) {
     try {
       if (mode === 'in') { await api.signIn(f); return done(); }
       if (f.password.length < 8) throw new Error(L('密码至少 8 位', 'Use at least 8 characters for the password'));
-      if (!(await api.rpc('check_invite', { invite_code: f.invite.trim() }))) throw new Error(L('邀请码无效或已被使用', 'This invite code is invalid or already used'));
+      const st = await api.rpc('invite_status', { invite_code: f.invite.trim(), for_email: f.email.trim() });
+      if (st === 'other_email') throw new Error(L('这个邀请码是发给另一个邮箱的，请用收到邀请的邮箱注册', 'This invite was issued for another e-mail address; register with the address it was sent to'));
+      if (st !== 'ok') throw new Error(L('邀请码无效或已被使用', 'This invite code is invalid or already used'));
       const r = await api.signUp({ ...f, email: f.email.trim(), fullName: f.fullName.trim(), invite: f.invite.trim() });
       if (r.signedIn) return done();
       setMode('in');
@@ -237,23 +243,88 @@ function Submit({ me }) {
 
 // ---------------------------------------------------------------- my tasks
 function Tasks({ me }) {
-  const d = useLoad(() => Promise.all([api.rows(`tasks?owner=eq.${me.id}&select=id,title,status,stages,current_stage,created_at,updated_at&order=created_at.desc`), api.stages()]), [me.id], 20000);
+  // this site's tasks, plus the copies of the member's tasks on the other site (kept by the sync job)
+  const d = useLoad(() => Promise.all([
+    api.rows(`tasks?owner=eq.${me.id}&select=id,title,status,stages,current_stage,created_at,updated_at&order=created_at.desc`),
+    api.stages(),
+    api.rows(`remote_tasks?origin=eq.${OTHER}&owner_email=eq.${encodeURIComponent((me.email || '').toLowerCase())}&select=id,origin,title,status,stages,current_stage,created_at&order=created_at.desc`).catch(() => []),
+  ]), [me.id], 20000);
   useEffect(() => { document.title = L('我的任务 · AI Scientist', 'My tasks · AI Scientist'); }, [LANG]);
-  const [tasks, stages] = d.data || [[], []];
+  const [mine, stages, remote] = d.data || [[], [], []];
+  const tasks = [...mine.map((t) => ({ ...t, origin: SITE })), ...remote].sort((x, y) => (x.created_at < y.created_at ? 1 : -1));
   const title = (id) => { const s = stages.find((x) => x.id === id); return s ? sl(s, 'title') : id; };
   return html`<${Shell} me=${me} page="tasks">
-    <${Head} title=${L('我的任务', 'My tasks')}><a class="pt-btn pri" href=${href('/submit')}>${I('plus', { s: 15 })}${L('提交任务', 'Submit a task')}</a><//>
+    <${Head} title=${L('我的任务', 'My tasks')} sub=${L('校内站与校外站的任务合并显示，几分钟同步一次。', 'Tasks from the campus and off-campus sites together, synced every few minutes.')}>
+      <a class="pt-btn pri" href=${href('/submit')}>${I('plus', { s: 15 })}${L('提交任务', 'Submit a task')}</a><//>
     ${d.error && html`<${Note} bad>${d.error}<//>`}
     ${d.loading ? html`<div class="pt-wait">${L('载入中', 'Loading')}</div>` : !tasks.length ? html`<div class="pt-empty">
         <p>${L('还没有任务', 'No tasks yet')}</p><a class="pt-btn pri" href=${href('/submit')}>${L('提交第一个任务', 'Submit your first task')}</a>
-        <p class="pt-fine">${SITE === 'cloud' ? L('这里只显示在校外站提交的任务；校内站的任务请连接 NTU VPN 后到校内站查看。', 'Only tasks submitted on the off-campus site appear here; for campus tasks, connect to the NTU VPN and open the campus site.') : L('这里只显示在校内站提交的任务。', 'Only tasks submitted on the campus site appear here.')}</p></div>`
-      : html`<div class="pt-list">${tasks.map((t) => html`<a class="pt-row" href=${href('/task?id=' + t.id)}>
+        <p class="pt-fine">${L('两个站用同一个邮箱注册后，另一个站的任务也会显示在这里。', 'Once you register on both sites with the same e-mail, tasks from the other site appear here too.')}</p></div>`
+      : html`<div class="pt-list">${tasks.map((t) => html`<a class="pt-row" href=${href(t.origin === SITE ? '/task?id=' + t.id : '/task?remote=' + t.id)}>
           <div class="main"><b class="ell">${t.title}</b>
             <span class="mut">${t.stages.map(title).join(' · ')}</span></div>
           ${t.status === 'running' && t.current_stage && html`<span class="now">${title(t.current_stage)}</span>`}
+          <${Where} site=${t.origin} />
           <${Badge} s=${t.status} />
           <span class="mut num hide-s">${when(t.created_at)}</span>
         </a>`)}</div>`}
+  <//>`;
+}
+
+// ---------------------------------------------------------------- a task on the other site
+// The lab copy of an off-campus task is complete; the off-campus copy of a campus task has
+// its name and progress only, and points to the campus site for the rest.
+function RemoteTask({ me, q }) {
+  const d = useLoad(() => Promise.all([
+    api.rows(`remote_tasks?id=eq.${q.remote}&select=*`).then((r) => r[0] || null),
+    api.rows(`remote_task_files?task_id=eq.${q.remote}&select=*&order=created_at`).catch(() => []),
+    api.stages(),
+  ]), [q.remote], 20000);
+  const [task, files, stages] = d.data || [null, [], []];
+  useEffect(() => { if (task) document.title = `${task.title} · AI Scientist`; }, [task?.title]);
+  if (d.loading) return html`<${Shell} me=${me} page="task"><div class="pt-wait">${L('载入中', 'Loading')}</div><//>`;
+  if (!task) return html`<${Shell} me=${me} page="task"><${Note} bad>${d.error || L('没有这个任务，或你无权查看', 'No such task, or it is not yours to see')}<//><//>`;
+  const title = (id) => { const s = stages.find((x) => x.id === id); return s ? sl(s, 'title') : id; };
+  const stateOf = (id) => (!task.stages.includes(id) ? null : task.status === 'done' || task.done_stages.includes(id) ? 'done' : task.status === 'running' && task.current_stage === id ? 'run' : 'wait');
+  const step = STEPS.indexOf(task.status);
+  const stopped = task.status === 'rejected' || task.status === 'failed';
+  const there = (task.origin === 'lab' ? LAB_URL : CLOUD_URL) + '/task?id=' + task.id;
+  const inputs = files.filter((x) => x.kind === 'input'), results = files.filter((x) => x.kind === 'result');
+  const FileRow = (x) => html`<button class="pt-file link" onClick=${() => api.download(x.path, x.name).catch((e) => alert(problem(e)))}>
+    ${I('down', { s: 15 })}<span class="ell">${x.name}</span>${x.stage && html`<span class="tagx">${title(x.stage)}</span>`}<span class="mut">${size(x.size)}</span></button>`;
+  return html`<${Shell} me=${me} page="task" wide>
+    <a class="pt-back" href=${href('/tasks')}>← ${L('返回', 'Back')}</a>
+    <${Head} title=${task.title} sub=${L('提交于 ', 'Submitted ') + when(task.created_at) + L('，来自', ', on the ') + nameOf(task.origin)}><${Badge} s=${task.status} /><//>
+    <${Note}>${L(`这个任务是在${nameOf(task.origin)}提交的，这里显示的是同步过来的副本，几分钟更新一次。`, `This task was submitted on the ${nameOf(task.origin)}; what you see is a synced copy, refreshed every few minutes.`)}
+      ${task.origin === 'lab'
+        ? html` ${L('任务说明、附件与产出只保存在校内，请连接 NTU VPN 后', 'Its description, attachments and results stay on campus: connect to the NTU VPN and')} <a href=${there} target="_blank" rel="noopener">${L('到校内站查看', 'open it on the campus site')}</a>${L('。', '.')}`
+        : html` <a href=${there} target="_blank" rel="noopener">${L('到校外站打开', 'Open it on the off-campus site')}</a>${L('。', '.')}`}<//>
+
+    <section class="pt-card">
+      <div class=${'pt-steps' + (stopped ? ' stopped' : '')}>
+        ${STEPS.map((s, i) => html`<div class=${'st' + (!stopped && i < step ? ' past' : '') + (!stopped && i === step ? ' now' : '')}><i>${!stopped && (i < step || task.status === 'done') ? I('check', { s: 12, w: 2.6 }) : i + 1}</i><span>${sName(s)}</span></div>`)}
+      </div>
+      ${stopped && html`<${Note} bad><b>${sName(task.status)}</b>${task.admin_note ? L('：', ': ') + task.admin_note : ''}<//>`}
+    </section>
+
+    <section class="pt-card">
+      <div class="pt-sec"><h2>${L('阶段进度', 'Stage progress')}</h2></div>
+      <${Flow} stages=${stages} picked=${task.stages} stateOf=${stateOf} />
+    </section>
+
+    ${results.length > 0 && html`<section class="pt-card glow">
+      <div class="pt-sec"><h2>${L('产出', 'Results')}</h2></div>
+      <div class="pt-files">${results.map(FileRow)}</div>
+    </section>`}
+
+    ${task.description && html`<section class="pt-card">
+      <div class="pt-sec"><h2>${L('任务说明', 'The task')}</h2></div>
+      <div class="pt-kv"><span class="k">${L('任务描述', 'Description')}</span><p>${task.description}</p></div>
+      <div class="pt-kv"><span class="k">${L('任务目标', 'Objective')}</span><p>${task.objective}</p></div>
+      ${task.data_note && html`<div class="pt-kv"><span class="k">${L('大数据的位置', 'Where large data lives')}</span><p>${task.data_note}</p></div>`}
+      <div class="pt-kv"><span class="k">${L('附件', 'Attachments')}</span>
+        ${inputs.length ? html`<div class="pt-files">${inputs.map(FileRow)}</div>` : html`<p class="mut">${L('无', 'None')}</p>`}</div>
+    </section>`}
   <//>`;
 }
 
@@ -352,6 +423,7 @@ function Admin({ me, q }) {
     api.stages(),
   ]), [], 20000);
   const [note, setNote] = useState('');
+  const [mail, setMail] = useState('');
   const [err, setErr] = useState('');
   useEffect(() => { document.title = L('管理 · AI Scientist', 'Admin · AI Scientist'); }, [LANG]);
   if (me.role !== 'admin') return html`<${Shell} me=${me}><${Note} bad>${L('需要管理员权限', 'Administrators only')}<//><//>`;
@@ -387,12 +459,13 @@ function Admin({ me, q }) {
       </div>`) : html`<div class="pt-empty"><p>${L('还没有任务', 'No tasks yet')}</p></div>`}</div>`}
 
     ${tab === 'invites' && !d.loading && html`
-      <form class="pt-inline" onSubmit=${(e) => { e.preventDefault(); act(api.insert('invites', { code: newCode(), note: note.trim(), created_by: me.id }).then(() => setNote(''))); }}>
+      <form class="pt-inline" onSubmit=${(e) => { e.preventDefault(); act(api.insert('invites', { code: newCode(), email: mail.trim().toLowerCase(), note: note.trim(), created_by: me.id }).then(() => { setNote(''); setMail(''); })); }}>
+        <input required type="email" placeholder=${L('对方的邮箱，只有它能用这个码注册', 'Their e-mail: only this address can use the code')} maxlength="120" value=${mail} onInput=${(e) => setMail(e.target.value)} />
         <input placeholder=${L('备注：发给谁', 'Note: who it is for')} maxlength="80" value=${note} onInput=${(e) => setNote(e.target.value)} />
         <button class="pt-btn pri">${I('plus', { s: 15 })}${L('生成邀请码', 'New invite')}</button>
       </form>
       <div class="pt-list">${invites.map((v) => html`<div class="pt-row">
-        <div class="main"><b class="mono">${v.code}</b><span class="mut">${v.note || '—'}${v.role === 'admin' ? ' · admin' : ''}</span></div>
+        <div class="main"><b class="mono">${v.code}</b><span class="mut">${v.email || L('未绑定邮箱', 'not tied to an e-mail')}${v.note ? ' · ' + v.note : ''}${v.role === 'admin' ? ' · admin' : ''}</span></div>
         ${v.used_by ? html`<span class="mut">${L('已使用：', 'Used by ')}${v.user?.full_name || v.user?.email || ''}</span>`
           : html`<button class="pt-btn sm" onClick=${(e) => { const b = e.currentTarget; navigator.clipboard.writeText(link(v.code)).then(() => { b.textContent = L('已复制', 'Copied'); }); }}>${L('复制注册链接', 'Copy sign-up link')}</button>
             <button class="pt-btn sm" onClick=${() => confirm(L('作废这个邀请码？', 'Revoke this invite?')) && act(api.remove('invites', `code=eq.${encodeURIComponent(v.code)}&used_by=is.null`))}>${L('作废', 'Revoke')}</button>`}
@@ -419,7 +492,7 @@ function App() {
     load();
     return api.onSession(load);
   }, []);
-  const Page = PRIVATE[page];
+  const Page = page === 'task' && q.remote ? RemoteTask : PRIVATE[page];
   useEffect(() => {
     if (Page && me === null) go('/login?next=' + encodeURIComponent(page + location.search), true);
     if (page === 'login' && me) go('/' + (q.next || 'tasks'), true);
@@ -427,7 +500,7 @@ function App() {
   if (page === '') return html`<${Hero} key=${LANG + (me ? 1 : 0)} />`;
   if (page === 'about') return html`<${About} />`;
   if (page === 'login') return me ? null : html`<${Login} q=${q} />`;
-  if (Page) return me ? html`<${Page} me=${me} q=${q} key=${page + (q.id || '')} />` : html`<${Shell} page=${page}><div class="pt-wait">${L('载入中', 'Loading')}</div><//>`;
+  if (Page) return me ? html`<${Page} me=${me} q=${q} key=${page + (q.id || q.remote || '')} />` : html`<${Shell} page=${page}><div class="pt-wait">${L('载入中', 'Loading')}</div><//>`;
   return html`<${Shell} me=${me}><div class="pt-empty"><p>${L('没有这个页面', 'Page not found')}</p><a class="pt-btn pri" href=${href('/')}>${L('回首页', 'Home')}</a></div><//>`;
 }
 

@@ -6,4 +6,5 @@ window.PORTAL_CONFIG = {
   bucket: 'task-files',
   site: 'cloud',                                   // the public site for off-campus members
   labUrl: 'https://ais-lab.liuguangrui.top',       // where campus members' accounts live
+  cloudUrl: 'https://liuguangrui.top/ai-scientist',
 };

@@ -64,6 +64,8 @@
 /* which of the two sites this is */
 .pt-site{font-size:11.5px;letter-spacing:.04em;padding:2px 9px;border-radius:999px;border:1px solid rgba(125,162,255,.45);color:var(--p-acc);margin-left:-12px}
 .pt-site.cloud{border-color:rgba(245,185,92,.45);color:var(--p-wait)}
+.pt-site.sm{margin-left:0;font-size:11px;padding:1px 8px;white-space:nowrap}
+.pt-inline input[type=email]{max-width:320px}
 .pt-where{margin-top:18px;padding:14px 16px;border-radius:10px;background:rgba(245,185,92,.07);border:1px solid rgba(245,185,92,.28);font-size:13px;line-height:1.7}
 .pt-where b{display:block;color:var(--p-wait);margin-bottom:4px;font-weight:600}
 .pt-where p{margin:6px 0 0;color:#C9CFDA}
