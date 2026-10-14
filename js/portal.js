@@ -342,7 +342,7 @@ function RemoteTask({ me, q }) {
   const FileRow = (x) => html`<button class="pt-file link" onClick=${() => api.download(x.path, x.name).catch((e) => alert(problem(e)))}>
     ${I('down', { s: 15 })}<span class="ell">${x.name}</span>${x.stage && html`<span class="tagx">${title(x.stage)}</span>`}<span class="mut">${size(x.size)}</span></button>`;
   return html`<${Shell} me=${me} page="task" wide>
-    <a class="pt-back" href=${href('/tasks')}>← ${L('返回', 'Back')}</a>
+    <a class="pt-back" href=${href(me.role === 'admin' && task.owner_email !== (me.email || '').toLowerCase() ? '/admin' : '/tasks')}>← ${L('返回', 'Back')}</a>
     <${Head} title=${task.title} sub=${L('提交于 ', 'Submitted ') + when(task.created_at) + L('，来自', ', on the ') + nameOf(task.origin)}><${Badge} s=${task.status} /><//>
     <${Note}>${L(`这是${nameOf(task.origin)}任务的同步副本。`, `A synced copy of a task on the ${nameOf(task.origin)}.`)}
       ${task.origin === 'lab'
@@ -482,13 +482,21 @@ function Admin({ me, q }) {
     api.rows('profiles?select=*&order=created_at'),
     api.stages(),
     api.rows('agent_tokens?select=owner,vendor,hint,status,updated_at').catch(() => []),
+    // the other site's tasks and members, as copied by the sync job (summaries only)
+    api.rows(`remote_tasks?origin=eq.${OTHER}&select=id,origin,owner_email,title,status,stages,current_stage,created_at&order=created_at.desc`).catch(() => []),
+    api.rows(`remote_profiles?origin=eq.${OTHER}&select=*&order=created_at`).catch(() => []),
   ]), [], 20000);
   const [note, setNote] = useState('');
   const [mail, setMail] = useState('');
   const [err, setErr] = useState('');
   useEffect(() => { document.title = L('管理 · AI Scientist', 'Admin · AI Scientist'); }, [LANG]);
   if (me.role !== 'admin') return html`<${Shell} me=${me}><${Note} bad>${L('需要管理员权限', 'Administrators only')}<//><//>`;
-  const [tasks, invites, people, stages, logins] = d.data || [[], [], [], [], []];
+  const [mine, invites, here, stages, logins, remote, others] = d.data || [[], [], [], [], [], [], []];
+  const nameOf_ = (email) => (others.find((p) => p.email === email) || {}).full_name || email;
+  const tasks = [...mine.map((t) => ({ ...t, origin: SITE })),
+    ...remote.map((t) => ({ ...t, who: { full_name: nameOf_(t.owner_email) } }))].sort((x, y) => (x.created_at < y.created_at ? 1 : -1));
+  const people = [...here.map((p) => ({ ...p, origin: SITE })), ...others];
+  const countOf = (p) => (p.origin === SITE ? mine.filter((t) => t.owner === p.id) : remote.filter((t) => t.owner_email === p.email)).length;
   const loginsOf = (id) => logins.filter((x) => x.owner === id);
   const Logins = ({ p }) => { const ls = loginsOf(p.id); return ls.length
     ? html`<span class="pt-logins">${ls.map((x) => html`<span class="pt-login sm" title=${L('提供于 ', 'Given ') + when(x.updated_at)}><b>${x.vendor === 'claude' ? 'Claude' : 'Codex'}</b><span class="mono">${x.hint}</span><${LoginBadge} s=${x.status} /></span>`)}</span>`
@@ -502,7 +510,7 @@ function Admin({ me, q }) {
     act(api.update('tasks', `id=eq.${t.id}`, status === 'queued' ? { status, approved_at: now } : { status, admin_note, finished_at: now })
       .then(() => api.insert('task_events', { task_id: t.id, kind: 'status', message: status })));
   };
-  const pending = tasks.filter((t) => t.status === 'pending').length;
+  const pending = mine.filter((t) => t.status === 'pending').length;
   const link = (code) => location.origin + href('/login?invite=' + encodeURIComponent(code));
   return html`<${Shell} me=${me} page="admin" wide>
     <${Head} title=${L('管理', 'Admin')} />
@@ -514,9 +522,18 @@ function Admin({ me, q }) {
     ${(err || d.error) && html`<${Note} bad>${err || d.error}<//>`}
     ${d.loading && html`<div class="pt-wait">${L('载入中', 'Loading')}</div>`}
 
-    ${tab === 'tasks' && !d.loading && html`<div class="pt-list">${tasks.length ? tasks.map((t) => html`<div class="pt-row">
+    ${tab === 'tasks' && !d.loading && html`<div class="pt-list">${tasks.length ? tasks.map((t) => t.origin !== SITE ? html`<div class="pt-row">
+        <a class="main" href=${href('/task?remote=' + t.id)}><b class="ell">${t.title}</b>
+          <span class="mut">${t.who.full_name}${t.stages.length ? ' · ' + t.stages.map(title).join(' · ') : ''}</span></a>
+        ${t.status === 'running' && t.current_stage && html`<span class="now">${title(t.current_stage)}</span>`}
+        <${Where} site=${t.origin} />
+        <${Badge} s=${t.status} />
+        <span class="mut num hide-s">${when(t.created_at)}</span>
+      </div>` : html`<div class="pt-row">
         <a class="main" href=${href('/task?id=' + t.id)}><b class="ell">${t.title}</b>
           <span class="mut">${t.who?.full_name || t.who?.email || '—'} · ${loginsOf(t.owner).map((x) => (x.vendor === 'claude' ? 'Claude' : 'Codex') + (x.status === 'failed' ? L('（不能用）', ' (broken)') : x.status === 'unchecked' ? L('（验证中）', ' (checking)') : '')).join(' / ') || L('无 Agent 登录', 'no agent login')}${t.stages.length ? ' · ' + t.stages.map(title).join(' · ') : ''}</span></a>
+        ${t.status === 'running' && t.current_stage && html`<span class="now">${title(t.current_stage)}</span>`}
+        <${Where} site=${t.origin} />
         <${Badge} s=${t.status} />
         <span class="mut num hide-s">${when(t.created_at)}</span>
         ${t.status === 'pending' && html`<button class="pt-btn pri sm" onClick=${() => decide(t, 'queued')}>${L('批准', 'Approve')}</button>
@@ -538,8 +555,9 @@ function Admin({ me, q }) {
 
     ${tab === 'people' && !d.loading && html`<div class="pt-list">${people.map((p) => html`<div class="pt-row">
         <div class="main"><b>${p.full_name || '—'}</b><span class="mut">${p.email}</span></div>
-        <${Logins} p=${p} />
-        <span class="mut">${tasks.filter((t) => t.owner === p.id).length} ${L('个任务', 'tasks')}</span>
+        ${p.origin === SITE && html`<${Logins} p=${p} />`}
+        <${Where} site=${p.origin} />
+        <span class="mut">${countOf(p)} ${L('个任务', 'tasks')}</span>
         <span class=${'pt-badge ' + (p.role === 'admin' ? 'run' : '')}>${p.role === 'admin' ? L('管理员', 'Admin') : L('成员', 'Member')}</span>
         <span class="mut num hide-s">${when(p.created_at)}</span>
       </div>`)}</div>`}
