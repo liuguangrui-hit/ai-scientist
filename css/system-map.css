@@ -164,6 +164,7 @@
 .person{fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round}
 .person circle{fill:currentColor;stroke:none}
 .smap-gate .cap{position:absolute;top:calc(100% + 7px);left:50%;transform:translateX(-50%);white-space:nowrap;font:600 12px 'IBM Plex Sans','Noto Sans SC',sans-serif;letter-spacing:2px;color:#F1F5F9;text-shadow:0 1px 6px rgba(0,0,0,.8)}
+.smap-gate.side .cap{top:50%;left:calc(100% + 12px);transform:translateY(-50%)}
 .smap-gate em{position:absolute;top:-6px;right:-8px;font:600 10.5px 'IBM Plex Mono',monospace;font-style:normal;min-width:18px;height:18px;padding:0 5px;border-radius:9px;display:grid;place-items:center;background:#FBBF24;color:#2A1B00}
 .smap-gate:hover,.smap-gate.on{box-shadow:0 0 0 2px var(--c),0 0 0 6px rgba(255,255,255,.12),0 0 46px rgba(255,255,255,.65)}
 .smap-store .lab b{display:inline-flex;align-items:center;justify-content:center;gap:8px}

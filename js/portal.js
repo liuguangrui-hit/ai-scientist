@@ -176,9 +176,18 @@ async function upload(taskId, files, onStep) {
   return failed;
 }
 
+// What the submitter allows; the planning step treats each one as a hard limit. All off by default.
+const ALLOW = [
+  ['allow_idea_change', ['允许修改我的想法和核心主张', 'You may change my idea and core claims'], ['不勾选时，你的想法原样保留，系统只在其基础上工作并给出建议', 'Unticked: your idea is kept as it is; the system builds on it and only suggests changes']],
+  ['allow_text_rewrite', ['允许改写我已有的论文文本', 'You may rewrite my existing paper text'], ['不勾选时，只在必须修改处改动，或只给修改意见', 'Unticked: only necessary edits, or comments only']],
+  ['allow_new_experiments', ['允许新做实验（会使用 GPU 服务器）', 'You may run new experiments (uses GPU servers)'], ['不勾选时，只使用你已有的结果和数据', 'Unticked: only your existing results and data are used']],
+  ['allow_sharing', ['允许把研究成果纳入系统共享库', 'You may add the research results to the shared library'], ['勾选后，结论可能被系统其他任务借鉴；不勾选则只交付给你', 'Ticked: other tasks in the system may learn from the findings; unticked: delivered to you only']],
+];
+
 function Submit({ me }) {
   const stages = useLoad(() => api.stages(), []);
   const [f, setF] = useState({ title: '', description: '', objective: '', data_note: '' });
+  const [allow, setAllow] = useState({});
   const [picked, setPicked] = useState([]);
   const [files, setFiles] = useState([]);
   const [busy, setBusy] = useState('');
@@ -188,48 +197,52 @@ function Submit({ me }) {
   const all = stages.data || [];
   const order = (ids) => all.filter((s) => ids.includes(s.id)).map((s) => s.id);
   const toggle = (id) => setPicked((now) => order(now.includes(id) ? now.filter((x) => x !== id) : [...now, id]));
-  // a picked stage whose predecessor is not picked starts from what the submitter brings
-  const entries = all.filter((s, i) => picked.includes(s.id) && !(i > 0 && picked.includes(all[i - 1].id)));
   async function submit(e) {
     e.preventDefault();
     setErr('');
-    if (!picked.length) { setErr(L('请在流程图上至少选择一个阶段', 'Pick at least one stage on the chart')); return; }
     setBusy(L('正在提交', 'Submitting'));
     let task;
     try {
-      task = await api.insert('tasks', { title: f.title.trim(), description: f.description.trim(), objective: f.objective.trim(), data_note: f.data_note.trim(), stages: picked });
+      task = await api.insert('tasks', { title: f.title.trim(), description: f.description.trim(), objective: f.objective.trim(), data_note: f.data_note.trim(), stages: picked,
+        constraints: Object.fromEntries(ALLOW.map(([k]) => [k, !!allow[k]])) });
     } catch (e2) { setErr(problem(e2)); setBusy(''); return; }
     const failed = await upload(task.id, files, (i, n) => setBusy(L(`正在上传附件 ${i}/${n}`, `Uploading file ${i} of ${n}`)));
     if (failed.length) { try { sessionStorage.setItem('aisp.failed.' + task.id, JSON.stringify(failed)); } catch {} }
     go('/task?id=' + task.id);
   }
   return html`<${Shell} me=${me} page="submit" wide>
-    <${Head} title=${L('提交任务', 'Submit a task')} sub=${L('选择要运行的阶段，说明任务。管理员审核通过后进入排队。', 'Choose the stages to run and describe the task. It joins the queue once an administrator approves it.')} />
+    <${Head} title=${L('提交任务', 'Submit a task')} sub=${L('写清楚你想得到什么。系统会按你的目标和已有材料规划要做的步骤，管理员审核通过后开始。', 'Say what you want back. The system plans the steps from your objective and what you already have; work starts once an administrator approves it.')} />
     ${stages.error && html`<${Note} bad>${stages.error}<//>`}
     <form class="pt-form" onSubmit=${submit}>
       <section class="pt-card">
-        <div class="pt-sec"><h2><em>1</em>${L('选择阶段', 'Choose the stages')}</h2>
-          <div class="pt-quick"><button type="button" class="pt-ghost" onClick=${() => setPicked(all.map((s) => s.id))}>${L('全流程', 'Whole pipeline')}</button>
-            <button type="button" class="pt-ghost" onClick=${() => setPicked([])}>${L('清空', 'Clear')}</button></div></div>
-        ${stages.loading ? html`<div class="pt-wait">${L('载入中', 'Loading')}</div>` : html`<${Flow} stages=${all} picked=${picked} onToggle=${toggle} />`}
-        ${entries.length > 0 && html`<div class="pt-needs"><span class="k">${L('这些阶段从你提供的材料开始，请在下面写明或附上', 'These stages start from what you provide; describe or attach it below')}</span>
-          ${entries.map((s) => html`<div><b>${sl(s, 'title')}</b><span>${sl(s, 'needs')}</span></div>`)}</div>`}
-      </section>
-
-      <section class="pt-card">
-        <div class="pt-sec"><h2><em>2</em>${L('说明任务', 'Describe the task')}</h2></div>
+        <div class="pt-sec"><h2><em>1</em>${L('说明任务', 'Describe the task')}</h2></div>
         <${Field} label=${L('任务名', 'Task name')}><input required maxlength="120" value=${f.title} onInput=${put('title')} /><//>
-        <${Field} label=${L('任务描述', 'Description')} hint=${L('背景、已有进展、约束', 'Background, what exists so far, constraints')}>
-          <textarea required rows="7" maxlength="20000" value=${f.description} onInput=${put('description')}></textarea><//>
-        <${Field} label=${L('任务目标', 'Objective')} hint=${L('希望得到的产出，以及怎样算完成', 'What you want back, and what counts as done')}>
+        <${Field} label=${L('任务目标（最重要）', 'Objective (the most important part)')} hint=${L('希望最终得到什么，怎样算完成。系统以这一栏为第一准则，原文执行，不会改写', 'What you want in the end and what counts as done. The system takes this as its first rule, word for word')}>
           <textarea required rows="4" maxlength="5000" value=${f.objective} onInput=${put('objective')}></textarea><//>
+        <${Field} label=${L('任务描述', 'Description')} hint=${L('背景，已经做到哪一步，手上有什么材料', 'Background, how far you have got, what you already have')}>
+          <textarea required rows="7" maxlength="20000" value=${f.description} onInput=${put('description')}></textarea><//>
       </section>
 
       <section class="pt-card">
-        <div class="pt-sec"><h2><em>3</em>${L('文件与数据', 'Files and data')}</h2></div>
+        <div class="pt-sec"><h2><em>2</em>${L('文件与数据', 'Files and data')}</h2></div>
+        <p class="pt-fine left">${L('已有的想法、论文草稿、实验结果、代码、审稿意见都可以附上，系统会从你已有的部分接着做。', 'Attach whatever you already have: idea, draft, results, code, reviews. The system continues from there.')}</p>
         <${Files} files=${files} setFiles=${setFiles} />
         <${Field} label=${L('大数据的位置', 'Where large data lives')} hint=${L(`超过 ${api.MAX_MB} MB 的数据不上传，填服务器路径或下载链接`, `Data over ${api.MAX_MB} MB is not uploaded; give a server path or a link`)}>
           <textarea rows="2" maxlength="2000" value=${f.data_note} onInput=${put('data_note')}></textarea><//>
+      </section>
+
+      <section class="pt-card">
+        <div class="pt-sec"><h2><em>3</em>${L('你允许系统做什么', 'What the system may do')}</h2></div>
+        <div class="pt-allow">${ALLOW.map(([k, label, hint]) => html`<label class=${'pt-check' + (allow[k] ? ' on' : '')}>
+          <input type="checkbox" checked=${!!allow[k]} onChange=${(e) => setAllow({ ...allow, [k]: e.target.checked })} />
+          <span><b>${L(...label)}</b><span class="h">${L(...hint)}</span></span></label>`)}</div>
+      </section>
+
+      <section class="pt-card">
+        <div class="pt-sec"><h2><em>4</em>${L('希望经过的阶段（可选）', 'Stages you have in mind (optional)')}</h2>
+          <div class="pt-quick"><button type="button" class="pt-ghost" onClick=${() => setPicked([])}>${L('清空', 'Clear')}</button></div></div>
+        <p class="pt-fine left">${L('不确定可以不选。系统会按你的目标自行规划，你的选择只作参考。', 'Leave it empty if unsure. The system plans from your objective; your choice is only a hint.')}</p>
+        ${stages.loading ? html`<div class="pt-wait">${L('载入中', 'Loading')}</div>` : html`<${Flow} stages=${all} picked=${picked} onToggle=${toggle} />`}
       </section>
 
       ${err && html`<${Note} bad>${err}<//>`}
@@ -380,6 +393,7 @@ function Task({ me, q }) {
 
     <section class="pt-card">
       <div class="pt-sec"><h2>${L('阶段进度', 'Stage progress')}</h2></div>
+      ${!task.commission && html`<p class="pt-fine left">${L('开始执行时，系统会按你的目标重新规划阶段，这里会随之更新。', 'When work starts, the system plans the stages from your objective and this chart follows.')}</p>`}
       <${Flow} stages=${stages} picked=${task.stages} stateOf=${stateOf} />
     </section>
 
@@ -394,6 +408,8 @@ function Task({ me, q }) {
         <div class="pt-kv"><span class="k">${L('任务描述', 'Description')}</span><p>${task.description}</p></div>
         <div class="pt-kv"><span class="k">${L('任务目标', 'Objective')}</span><p>${task.objective}</p></div>
         ${task.data_note && html`<div class="pt-kv"><span class="k">${L('大数据的位置', 'Where large data lives')}</span><p>${task.data_note}</p></div>`}
+        <div class="pt-kv"><span class="k">${L('你允许系统做的', 'What you allowed')}</span>
+          <ul class="pt-allowed">${ALLOW.map(([k, label]) => html`<li class=${task.constraints?.[k] ? 'yes' : 'no'}>${task.constraints?.[k] ? '✓' : '✕'} ${L(...label)}</li>`)}</ul></div>
         <div class="pt-kv"><span class="k">${L('附件', 'Attachments')}</span>
           ${inputs.length ? html`<div class="pt-files">${inputs.map(FileRow)}</div>` : html`<p class="mut">${L('无', 'None')}</p>`}</div>
         ${failed.length > 0 && html`<${Note} bad>${L('以下附件上传失败：', 'These files failed to upload: ')}${failed.join('；')}<//>`}

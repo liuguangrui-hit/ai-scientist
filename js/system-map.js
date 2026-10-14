@@ -35,7 +35,7 @@ const N = {
   study_paper: [985, 300], consolidate_literature: [1150, 392], test_literature: [1150, 566], audit_literature: [985, 690],
   litforest: [975, 470, 'forest'],
   plan_paper: [190, 806], prepare_figures: [380, 806], write_paper: [570, 806], audit_paper: [380, 884],
-  review_paper: [780, 806], revise_paper: [780, 884], edit_paper: [970, 806], review_style: [1150, 806], you: [1150, 884, 'gate'], submit_paper: [1150, 936], track_deadlines: [970, 936],
+  review_paper: [780, 806], revise_paper: [780, 884], edit_paper: [970, 806], review_style: [1150, 806], you: [1150, 871, 'gate'], submit_paper: [1150, 936], track_deadlines: [970, 936],
   maintain_backend: [1419, 834], maintain_frontend: [1419, 928],
 };
 const LANE_OF = {
@@ -154,6 +154,8 @@ const OWNS = { manage_playbooks: 'playbooks' };
 const STORES = new Set(['forest', 'litforest', 'playbooks', 'you', 'human_adopt']);
 // the human decisions: a gate on the flow, captioned with what is decided
 const GATE = { human_adopt: ['立项', 'Adopt'], you: ['投稿', 'Submit'] };
+// a gate squeezed between two cards carries its caption beside it
+const CAP_SIDE = new Set(['you']);
 
 // ---------------------------------------------------------------- geometry
 const size = (id) => { const k = N[id][2]; return k === 'forest' ? [250, 200] : k === 'crystal' ? [156, 236] : k === 'gate' ? [42, 42] : LANE_OF[id] === 'maintenance' ? [276, CH] : [CW, CH]; };
@@ -195,7 +197,7 @@ function sprite(rgb) {
 // what a label must not cover: every card, the crystal, you, each forest's caption, the panel
 const OBST = [...Object.keys(N).map((id) => {
   const [x, y, k] = N[id]; const [w, h] = size(id);
-  return k === 'forest' ? [x - 160, y + 98, 320, 68] : k === 'gate' ? [x - 34, y - 25, 68, 66] : [x - w / 2 - 4, y - h / 2 - 4, w + 8, h + 8];
+  return k === 'forest' ? [x - 160, y + 98, 320, 68] : k === 'gate' ? (CAP_SIDE.has(id) ? [x - 25, y - 25, 96, 50] : [x - 34, y - 25, 68, 66]) : [x - w / 2 - 4, y - h / 2 - 4, w + 8, h + 8];
 }), [1240, 80, 360, 700]];
 let ruler;
 const textW = (s) => { if (!ruler) { ruler = document.createElement('canvas').getContext('2d'); ruler.font = '11.5px "IBM Plex Sans","Noto Sans SC",system-ui,sans-serif'; } return ruler.measureText(s).width + 30; };
@@ -419,7 +421,7 @@ export function SystemMap() {
         }
         if (k === 'gate') {
           const n = id === 'you' ? c.decisions : c.ideaDecide;
-          return html`<button class=${cls('smap-gate')} style=${st} onClick=${() => pick('store', id)} ...${ev} title=${L(...NAME[id])}>
+          return html`<button class=${cls('smap-gate' + (CAP_SIDE.has(id) ? ' side' : ''))} style=${st} onClick=${() => pick('store', id)} ...${ev} title=${L(...NAME[id])}>
             <${Person} /><span class="cap">${L(...GATE[id])}</span>${n > 0 && html`<em>${n}</em>`}</button>`;
         }
         return html`<button class=${cls('smap-card')} style=${st} onClick=${() => pick('module', id)} ...${ev}>

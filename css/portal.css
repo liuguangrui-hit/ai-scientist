@@ -84,6 +84,18 @@
 .pt-tabs.line em{font:500 11px var(--mono);font-style:normal;padding:1px 7px;border-radius:999px;background:var(--p-acc2);color:#fff}
 .pt-tabs.line em.q{background:rgba(255,255,255,.1);color:var(--p-mut)}
 
+/* what the submitter allows */
+.pt-allow{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.pt-check{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-radius:10px;border:1px solid var(--p-line);background:rgba(255,255,255,.02);cursor:pointer;transition:border-color .2s,background .2s}
+.pt-check:hover{border-color:rgba(125,162,255,.45)}
+.pt-check.on{border-color:var(--p-acc);background:rgba(61,107,240,.12)}
+.pt-check input{margin-top:3px;accent-color:var(--p-acc2);width:16px;height:16px;flex-shrink:0}
+.pt-check b{display:block;font-size:13.5px;font-weight:600;color:#E3E8F2}
+.pt-check .h{display:block;font-size:12px;color:var(--p-mut);margin-top:3px;line-height:1.6}
+.pt-fine.left{text-align:left;margin:-6px 0 14px}
+.pt-allowed{list-style:none;margin:0;padding:0;font-size:13px;line-height:1.9}
+.pt-allowed .yes{color:var(--p-pass)} .pt-allowed .no{color:var(--p-mut)}
+
 /* the flow chart */
 .pt-flow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:16px 26px}
 .pt-stage{position:relative;min-height:116px;text-align:left;padding:13px 14px 14px;border-radius:12px;border:1px solid var(--p-line);background:rgba(255,255,255,.025);
@@ -180,4 +192,5 @@ a.pt-row:hover{border-color:rgba(125,162,255,.5);background:rgba(61,107,240,.08)
   .pt-steps .st span{display:none} .pt-steps .st.now span{display:inline}
   .pt input:not([type=file]),.pt textarea{font-size:16px}
   .pt-needs div{flex-direction:column;gap:2px} .pt-needs b{flex:none}
+  .pt-allow{grid-template-columns:1fr}
 }
