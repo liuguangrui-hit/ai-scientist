@@ -131,6 +131,14 @@ function Login({ q }) {
 
 // ---------------------------------------------------------------- the flow chart
 // Submitting: click a stage to include it. Following a task: each stage shows where it stands.
+// Stages run in parallel: every stage started and not yet finished is running, not only the
+// current one; a stage reported finished counts as done even if its start was never reported.
+function stageState(task, started, finished) {
+  const done = new Set(finished), open = new Set(started);
+  if (task.status === 'running' && task.current_stage) open.add(task.current_stage);
+  return (id) => (!task.stages.includes(id) ? null : task.status === 'done' || done.has(id) ? 'done' : task.status === 'running' && open.has(id) ? 'run' : 'wait');
+}
+
 function Flow({ stages, picked, onToggle, stateOf }) {
   return html`<div class=${'pt-flow' + (onToggle ? ' pick' : '')}>
     ${stages.map((st, i) => {
@@ -313,7 +321,7 @@ function RemoteTask({ me, q }) {
   if (d.loading) return html`<${Shell} me=${me} page="task"><div class="pt-wait">${L('载入中', 'Loading')}</div><//>`;
   if (!task) return html`<${Shell} me=${me} page="task"><${Note} bad>${d.error || L('没有这个任务，或你无权查看', 'No such task, or it is not yours to see')}<//><//>`;
   const title = (id) => { const s = stages.find((x) => x.id === id); return s ? sl(s, 'title') : id; };
-  const stateOf = (id) => (!task.stages.includes(id) ? null : task.status === 'done' || task.done_stages.includes(id) ? 'done' : task.status === 'running' && task.current_stage === id ? 'run' : 'wait');
+  const stateOf = stageState(task, task.started_stages || [], task.done_stages);
   const step = STEPS.indexOf(task.status);
   const stopped = task.status === 'rejected' || task.status === 'failed';
   const there = (task.origin === 'lab' ? LAB_URL : CLOUD_URL) + '/task?id=' + task.id;
@@ -379,8 +387,9 @@ function Task({ me, q }) {
   const trouble = ['pending', 'queued', 'running'].includes(task.status) && loginTrouble(logins, required, task.owner === me.id);
   const troubleBad = trouble && !logins.some((x) => x.status === 'unchecked');
 
-  const finished = new Set(events.filter((e) => e.kind === 'stage_finished').map((e) => e.stage));
-  const stateOf = (id) => (!task.stages.includes(id) ? null : task.status === 'done' || finished.has(id) ? 'done' : task.status === 'running' && task.current_stage === id ? 'run' : 'wait');
+  const reported = (kind) => events.filter((e) => e.kind === kind).map((e) => e.stage);
+  const stateOf = stageState(task, reported('stage_started'), reported('stage_finished'));
+  const running = task.stages.filter((s) => stateOf(s) === 'run');
   const title = (id) => { const s = stages.find((x) => x.id === id); return s ? sl(s, 'title') : id; };
   const step = STEPS.indexOf(task.status);
   const stopped = task.status === 'rejected' || task.status === 'failed';
@@ -407,7 +416,7 @@ function Task({ me, q }) {
       </div>
       ${task.status === 'pending' && html`<p class="pt-say">${L('等待管理员审核。审核通过后进入排队。', 'Waiting for an administrator to review it. Once approved it joins the queue.')}</p>`}
       ${task.status === 'queued' && html`<p class="pt-say">${L('已通过审核，正在排队等待执行。', 'Approved and waiting in the queue.')}</p>`}
-      ${task.status === 'running' && html`<p class="pt-say">${L('正在执行', 'Running')}${task.current_stage ? L('：', ': ') + title(task.current_stage) : ''}${L(`，已完成 ${doneCount}/${task.stages.length} 个阶段`, `, ${doneCount} of ${task.stages.length} stages finished`)}</p>`}
+      ${task.status === 'running' && html`<p class="pt-say">${L('正在执行', 'Running')}${running.length ? L('：', ': ') + running.map(title).join(L('、', ', ')) : ''}${L(`，已完成 ${doneCount}/${task.stages.length} 个阶段`, `, ${doneCount} of ${task.stages.length} stages finished`)}</p>`}
       ${task.status === 'done' && html`<p class="pt-say">${L('任务已完成，产出见下方。', 'The task is finished; its results are below.')}</p>`}
       ${stopped && html`<${Note} bad><b>${sName(task.status)}</b>${task.admin_note ? L('：', ': ') + task.admin_note : ''}<//>`}
       ${!stopped && task.admin_note && html`<${Note}>${task.admin_note}<//>`}
