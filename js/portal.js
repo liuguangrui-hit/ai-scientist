@@ -519,18 +519,45 @@ function Admin({ me, q }) {
 // encrypted; pages show only a masked hint, its state and when it was given, to the member and admins.
 const LOGIN_STATE = { unchecked: ['未使用过', 'Not used yet', 'wait'], ok: ['可用', 'Working', 'pass'], failed: ['失效', 'Not working', 'fail'] };
 const LoginBadge = ({ s }) => html`<span class=${'pt-badge ' + (LOGIN_STATE[s]?.[2] || '')}><i></i>${L(...(LOGIN_STATE[s] || [s, s]).slice(0, 2))}</span>`;
-const CODEX_CMD = 'export CODEX_HOME="$(mktemp -d)"; codex login && cat "$CODEX_HOME/auth.json"';
-const CODEX_CMD_WIN = '$env:CODEX_HOME = (New-Item -ItemType Directory -Path (Join-Path $env:TEMP ("codex-ais-" + [guid]::NewGuid()))).FullName; codex login; Get-Content "$env:CODEX_HOME\\auth.json"';
+// Step-by-step, per operating system; the Codex command puts the login on the clipboard itself.
+const OSES = [['mac', 'macOS'], ['win', 'Windows'], ['linux', 'Linux']];
+const myOs = () => (/Win/i.test(navigator.platform) ? 'win' : /Mac|iPhone|iPad/i.test(navigator.platform) ? 'mac' : 'linux');
+const TERMINAL = {
+  mac: ['按 Command + 空格，输入“终端”后回车，打开终端。', 'Press Command + Space, type Terminal and press Return.'],
+  win: ['在开始菜单搜索 PowerShell 并打开。', 'Search for PowerShell in the Start menu and open it.'],
+  linux: ['打开一个终端。', 'Open a terminal.'],
+};
+const CODEX_CMD = {
+  mac: 'export CODEX_HOME="$(mktemp -d)"; codex login && pbcopy < "$CODEX_HOME/auth.json" && echo "Copied. Go back to the web page and click Paste."',
+  win: '$env:CODEX_HOME = (New-Item -ItemType Directory -Path (Join-Path $env:TEMP ("codex-ais-" + [guid]::NewGuid()))).FullName; codex login; Get-Content -Raw "$env:CODEX_HOME\\auth.json" | Set-Clipboard; Write-Host "Copied. Go back to the web page and click Paste."',
+  linux: 'export CODEX_HOME="$(mktemp -d)"; codex login && cat "$CODEX_HOME/auth.json"',
+};
+function Cmd({ text }) {
+  const [done, setDone] = useState(false);
+  const copy = () => navigator.clipboard.writeText(text).then(() => { setDone(true); setTimeout(() => setDone(false), 2000); });
+  return html`<div class="pt-cmdrow"><pre class="pt-cmd">${text}</pre><button type="button" class="pt-btn sm" onClick=${copy}>${done ? L('已复制', 'Copied') : L('复制命令', 'Copy')}</button></div>`;
+}
 const VENDORS = [
-  { id: 'claude', name: 'Claude Code',
-    how: () => html`<p>${L('需要 Claude Pro 或 Max 订阅。在自己电脑的终端里运行下面的命令，按提示在浏览器里登录，再把最后输出的、以 sk-ant-oat01- 开头的一行粘贴到这里。这个令牌一年有效。', 'Needs a Claude Pro or Max subscription. Run this in a terminal on your own computer, sign in in the browser when asked, then paste the last line it prints, starting with sk-ant-oat01-. The token lasts a year.')}</p>
-      <pre class="pt-cmd">claude setup-token</pre>`,
-    place: 'sk-ant-oat01-…' },
-  { id: 'codex', name: 'Codex',
-    how: () => html`<p>${L('需要 ChatGPT Plus 或 Pro 订阅。下面的命令为 AI Scientist 单独登录一次，不影响你电脑上原来的 Codex。登录后把输出的整段内容粘贴到这里，或选择命令里那个 auth.json 文件。这份登录只给 AI Scientist 用，不要再拿去别处使用。', 'Needs a ChatGPT Plus or Pro subscription. The command makes a separate login just for AI Scientist and leaves the Codex on your computer as it is. Paste everything it prints, or pick that auth.json file. Use this login for AI Scientist only.')}</p>
-      <span class="mut">macOS / Linux</span><pre class="pt-cmd">${CODEX_CMD}</pre>
-      <span class="mut">Windows PowerShell</span><pre class="pt-cmd">${CODEX_CMD_WIN}</pre>`,
-    place: '{ "tokens": { … } }', file: true },
+  { id: 'claude', name: 'Claude Code', place: 'sk-ant-oat01-…',
+    need: () => L('需要 Claude Pro 或 Max 订阅，电脑上装好 Claude Code（claude 命令）。', 'Needs a Claude Pro or Max subscription and Claude Code (the claude command) on your computer.'),
+    steps: (os) => [
+      L(...TERMINAL[os]),
+      html`${L('复制下面的命令，粘贴到终端里，按回车。', 'Copy this command, paste it into the terminal and press Return.')}<${Cmd} text="claude setup-token" />`,
+      L('浏览器会打开 Claude 的授权页，登录并点同意。', 'A browser page opens: sign in to Claude and approve.'),
+      L('回到终端，最后会出现一长串以 sk-ant-oat01- 开头的字符。选中这一整串，复制。', 'Back in the terminal, the last thing shown is a long string starting with sk-ant-oat01-. Select all of it and copy.'),
+      L('回到这个页面，点下面的“粘贴”，再点“保存”。', 'Come back here, click Paste below, then Save.'),
+    ] },
+  { id: 'codex', name: 'Codex', place: '{ "tokens": { … } }', file: true,
+    need: () => L('需要 ChatGPT Plus 或 Pro 订阅，电脑上装好 Codex（codex 命令）。这一步会为 AI Scientist 单独登录一次，不影响你平时用的 Codex。', 'Needs a ChatGPT Plus or Pro subscription and Codex (the codex command) on your computer. This makes a separate login just for AI Scientist; the Codex you normally use is not touched.'),
+    steps: (os) => [
+      L(...TERMINAL[os]),
+      html`${L('复制下面的命令，粘贴到终端里，按回车。', 'Copy this command, paste it into the terminal and press Return.')}<${Cmd} text=${CODEX_CMD[os]} />`,
+      L('浏览器会打开 ChatGPT 的登录页，登录并点同意。', 'A browser page opens: sign in to ChatGPT and approve.'),
+      os === 'linux'
+        ? L('回到终端，会显示一段以 { 开头、以 } 结尾的内容。从 { 到 } 全部选中，复制。', 'Back in the terminal, a block from { to } is shown. Select all of it, from { to }, and copy.')
+        : L('终端出现 Copied 字样，说明登录内容已经复制好了，不用再选什么。', 'When the terminal says Copied, the login is already on your clipboard; nothing to select.'),
+      L('回到这个页面，点下面的“粘贴”，再点“保存”。', 'Come back here, click Paste below, then Save.'),
+    ] },
 ];
 
 function Agents({ me, setup, onDone }) {
@@ -539,7 +566,9 @@ function Agents({ me, setup, onDone }) {
   const [val, setVal] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [os, setOs] = useState(myOs);
   useEffect(() => { document.title = L('Agent 登录 · AI Scientist', 'Agent logins · AI Scientist'); }, [LANG]);
+  const paste = () => navigator.clipboard.readText().then((t) => setVal(t.trim()), () => setErr(L('浏览器不让网页直接读剪贴板。请点一下下面的输入框，按 Command+V（Windows 按 Ctrl+V）粘贴。', 'The browser did not let the page read the clipboard. Click the box below and press Command+V (Ctrl+V on Windows).')));
   const have = d.data || [];
   const begin = (v) => { setOpen(open === v ? '' : v); setVal(''); setErr(''); };
   async function save(e, vendor) {
@@ -551,7 +580,6 @@ function Agents({ me, setup, onDone }) {
   }
   const drop = (v) => confirm(L(`删除你的 ${v.name} 登录？之后你的任务不能再用它运行。`, `Remove your ${v.name} login? Your tasks can no longer run on it.`))
     && api.rpc('delete_agent_token', { vendor: v.id }).then(d.reload, (e) => setErr(problem(e)));
-  const readFile = (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) f.text().then(setVal); };
   return html`<${Shell} me=${me} page="agents">
     <${Head} title=${L('Agent 登录', 'Agent logins')} sub=${L('你的任务用你自己的 Claude Code 或 Codex 订阅运行。至少提供一个，两个都提供时两边都能用上。', 'Your tasks run on your own Claude Code or Codex subscription. Give at least one; with both, each can be used.')} />
     ${setup && html`<${Note}>${L('提交任务前，请先提供一个 Agent 登录。', 'Before you submit a task, give one agent login.')}<//>`}
@@ -567,9 +595,11 @@ function Agents({ me, setup, onDone }) {
             ${t.note && html`<p class="pt-fine left">${t.note}</p>`}`
           : html`<p class="mut">${L('还没有提供', 'Not given yet')}</p>`}
         ${open === v.id && html`<form class="pt-give" onSubmit=${(e) => save(e, v.id)}>
-          ${v.how()}
+          <p>${v.need()}</p>
+          <div class="pt-tabs os">${OSES.map(([k, n]) => html`<button type="button" class=${os === k ? 'on' : ''} onClick=${() => setOs(k)}>${n}</button>`)}</div>
+          <ol class="pt-steps-list">${v.steps(os).map((x) => html`<li>${x}</li>`)}</ol>
           <textarea required rows=${v.file ? 6 : 2} spellcheck="false" autocomplete="off" placeholder=${v.place} value=${val} onInput=${(e) => setVal(e.target.value)}></textarea>
-          <div class="pt-actions">${v.file && html`<label class="pt-btn sm">${L('选择 auth.json', 'Pick auth.json')}<input type="file" accept=".json,application/json" hidden onChange=${readFile} /></label>`}
+          <div class="pt-actions"><button type="button" class="pt-btn sm" onClick=${paste}>${L('粘贴', 'Paste')}</button>
             <button class="pt-btn pri" disabled=${busy || !val.trim()}>${busy ? L('正在保存', 'Saving') : L('保存', 'Save')}</button></div>
         </form>`}
       </section>`;
