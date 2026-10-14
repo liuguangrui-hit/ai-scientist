@@ -624,6 +624,7 @@ function Agents({ me, setup, onDone }) {
         </form>`}
       </section>`;
     })}
+    <${Note}>${L('任务和你平时使用共用同一份订阅额度：任务跑得多时，你自己在手机或电脑上用 Claude、Codex 可能更早碰到额度上限；反过来你用得多，任务也会暂停等待额度恢复。这里提供的是单独的一份登录，不会让你其他设备上的 Claude、Codex 掉线。', 'Tasks and your own use share one subscription quota: when tasks run a lot, you may reach your limit sooner on your phone or computer, and when you use a lot, tasks wait for the quota to come back. The login given here is a separate one; it does not sign out Claude or Codex on your other devices.')}<//>
     <p class="pt-fine left">${L('登录加密保存。页面上只显示开头和结尾几位：你和管理员能看到你提供了哪个登录，看不到完整内容。系统只用它运行你本人提交的任务；额度用完时任务暂停，等额度恢复后继续，不会换用别人的账号。你可以随时在这里删除，或在 Claude、ChatGPT 的账户设置里注销这次登录。', 'Logins are stored encrypted. Pages show only the first and last few characters: you and the administrators can see which login you gave, never the whole of it. It is used only for tasks you submit; when its quota runs out the task waits for it to come back and never moves to someone else\'s account. Remove it here at any time, or sign this login out in your Claude or ChatGPT account settings.')}</p>
   <//>`;
 }
