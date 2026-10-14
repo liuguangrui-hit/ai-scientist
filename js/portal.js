@@ -485,13 +485,15 @@ function Admin({ me, q }) {
     // the other site's tasks and members, as copied by the sync job (summaries only)
     api.rows(`remote_tasks?origin=eq.${OTHER}&select=id,origin,owner_email,title,status,stages,current_stage,created_at&order=created_at.desc`).catch(() => []),
     api.rows(`remote_profiles?origin=eq.${OTHER}&select=*&order=created_at`).catch(() => []),
+    api.rows(`remote_decisions?origin=eq.${OTHER}&applied_at=is.null&select=task_id,decision`).catch(() => []),
   ]), [], 20000);
   const [note, setNote] = useState('');
   const [mail, setMail] = useState('');
   const [err, setErr] = useState('');
   useEffect(() => { document.title = L('管理 · AI Scientist', 'Admin · AI Scientist'); }, [LANG]);
   if (me.role !== 'admin') return html`<${Shell} me=${me}><${Note} bad>${L('需要管理员权限', 'Administrators only')}<//><//>`;
-  const [mine, invites, here, stages, logins, remote, others] = d.data || [[], [], [], [], [], [], []];
+  const [mine, invites, here, stages, logins, remote, others, sent] = d.data || [[], [], [], [], [], [], [], []];
+  const sentFor = (id) => sent.find((x) => x.task_id === id);
   const nameOf_ = (email) => (others.find((p) => p.email === email) || {}).full_name || email;
   const tasks = [...mine.map((t) => ({ ...t, origin: SITE })),
     ...remote.map((t) => ({ ...t, who: { full_name: nameOf_(t.owner_email) } }))].sort((x, y) => (x.created_at < y.created_at ? 1 : -1));
@@ -510,7 +512,13 @@ function Admin({ me, q }) {
     act(api.update('tasks', `id=eq.${t.id}`, status === 'queued' ? { status, approved_at: now } : { status, admin_note, finished_at: now })
       .then(() => api.insert('task_events', { task_id: t.id, kind: 'status', message: status })));
   };
-  const pending = mine.filter((t) => t.status === 'pending').length;
+  const pending = tasks.filter((t) => t.status === 'pending' && !sentFor(t.id)).length;
+  // a task of the other site: the decision is recorded here and applied there by the sync job
+  const decideThere = (t, decision) => {
+    let admin_note = '';
+    if (decision === 'rejected') { admin_note = prompt(L('退回原因（学生可见）', 'Reason, shown to the member')); if (admin_note == null) return; }
+    act(api.insert('remote_decisions', { task_id: t.id, origin: t.origin, decision, admin_note }));
+  };
   const link = (code) => location.origin + href('/login?invite=' + encodeURIComponent(code));
   return html`<${Shell} me=${me} page="admin" wide>
     <${Head} title=${L('管理', 'Admin')} />
@@ -529,6 +537,10 @@ function Admin({ me, q }) {
         <${Where} site=${t.origin} />
         <${Badge} s=${t.status} />
         <span class="mut num hide-s">${when(t.created_at)}</span>
+        ${t.status === 'pending' && (sentFor(t.id)
+          ? html`<span class="mut">${sentFor(t.id).decision === 'queued' ? L('已批准，一分钟内生效', 'Approved, applies within a minute') : L('已退回，一分钟内生效', 'Returned, applies within a minute')}</span>`
+          : html`<button class="pt-btn pri sm" onClick=${() => decideThere(t, 'queued')}>${L('批准', 'Approve')}</button>
+            <button class="pt-btn sm" onClick=${() => decideThere(t, 'rejected')}>${L('退回', 'Return')}</button>`)}
       </div>` : html`<div class="pt-row">
         <a class="main" href=${href('/task?id=' + t.id)}><b class="ell">${t.title}</b>
           <span class="mut">${t.who?.full_name || t.who?.email || '—'} · ${loginsOf(t.owner).map((x) => (x.vendor === 'claude' ? 'Claude' : 'Codex') + (x.status === 'failed' ? L('（不能用）', ' (broken)') : x.status === 'unchecked' ? L('（验证中）', ' (checking)') : '')).join(' / ') || L('无 Agent 登录', 'no agent login')}${t.stages.length ? ' · ' + t.stages.map(title).join(' · ') : ''}</span></a>
