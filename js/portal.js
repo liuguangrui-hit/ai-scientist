@@ -73,6 +73,8 @@ const Field = ({ label, hint, children }) => html`<label class="pt-field"><span 
 function Login({ q }) {
   const [mode, setMode] = useState(q.invite ? 'up' : 'in');
   const [f, setF] = useState({ email: '', password: '', fullName: '', invite: q.invite || '' });
+  const [vendor, setVendor] = useState('claude');
+  const [login, setLogin] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
   const put = (k) => (e) => setF({ ...f, [k]: e.target.value });
@@ -84,11 +86,17 @@ function Login({ q }) {
     try {
       if (mode === 'in') { await api.signIn(f); return done(); }
       if (f.password.length < 8) throw new Error(L('密码至少 8 位', 'Use at least 8 characters for the password'));
+      const bad = loginProblem(vendor, login);
+      if (bad) throw new Error(bad);
       const st = await api.rpc('invite_status', { invite_code: f.invite.trim(), for_email: f.email.trim() });
       if (st === 'other_email') throw new Error(L('这个邀请码是发给另一个邮箱的，请用收到邀请的邮箱注册', 'This invite was issued for another e-mail address; register with the address it was sent to'));
       if (st !== 'ok') throw new Error(L('邀请码无效或已被使用', 'This invite code is invalid or already used'));
       const r = await api.signUp({ ...f, email: f.email.trim(), fullName: f.fullName.trim(), invite: f.invite.trim() });
-      if (r.signedIn) return done();
+      if (r.signedIn) {
+        // the account cannot submit until a login is saved; if this fails the Agent logins page asks again
+        await api.rpc('set_agent_token', { vendor, secret: login }).catch(() => {});
+        return done();
+      }
       setMode('in');
       setMsg({ text: L('注册成功。请先点击邮件中的确认链接，再回到这里登录。', 'Registered. Confirm the link in the e-mail we sent, then sign in here.') });
     } catch (err) {
@@ -112,12 +120,17 @@ function Login({ q }) {
             <span><b>${L('我已阅读并同意使用协议', 'I have read and accept the terms of use')}</b><span class="h">${TERMS()}</span></span></label>`}
           <${Field} label=${L('密码', 'Password')} hint=${mode === 'up' && L('至少 8 位', 'At least 8 characters')}>
             <input required type="password" value=${f.password} onInput=${put('password')} autocomplete=${mode === 'in' ? 'current-password' : 'new-password'} /><//>
+          ${mode === 'up' && html`<div class="pt-give signup">
+            <span class="k">${L('你的 Agent 登录（至少一个）', 'Your agent login (at least one)')}</span>
+            <p class="pt-fine left">${L('你的任务用你自己的订阅运行。先提供其中一个，另一个可以注册后在 Agent 登录页添加。', 'Your tasks run on your own subscription. Give one now; you can add the other on the Agent logins page later.')}</p>
+            <div class="pt-tabs os">${VENDORS.map((v) => html`<button type="button" class=${vendor === v.id ? 'on' : ''} onClick=${() => { setVendor(v.id); setLogin(''); }}>${v.name}</button>`)}</div>
+            <${LoginSteps} key=${vendor} v=${VENDORS.find((v) => v.id === vendor)} val=${login} setVal=${setLogin} onErr=${(m) => setMsg({ bad: true, text: m })} signup />
+          </div>`}
           ${msg && html`<${Note} bad=${msg.bad}>${msg.text}<//>`}
           <button class="pt-btn pri" disabled=${busy}>${busy ? L('请稍候', 'One moment') : mode === 'in' ? L('登录', 'Sign in') : L('注册', 'Register')}</button>
         </form>
       </div>
       <p class="pt-fine">${L('本系统为邀请制，邀请码由管理员发放。', 'Access is by invitation. Invite codes come from the administrator.')}</p>
-      ${mode === 'up' && html`<p class="pt-fine">${L('注册后需要提供你自己的 Claude Code 或 Codex 订阅登录，你的任务用它运行。', 'After registering you give your own Claude Code or Codex subscription login; your tasks run on it.')}</p>`}
       ${SITE === 'cloud' && html`<div class="pt-where">
         <b>${L('你现在在校外站', 'You are on the off-campus site')}</b>
         <p>${L('校内站和校外站的账号是分开的，在校内注册的账号不能在这里登录，校内提交的任务也不在这里显示。', 'The campus site and this one keep separate accounts: an account registered on campus cannot sign in here, and tasks submitted there are not shown here.')}</p>
@@ -567,25 +580,44 @@ function Cmd({ text }) {
 const VENDORS = [
   { id: 'claude', name: 'Claude Code', place: 'sk-ant-oat01-…',
     need: () => L('需要 Claude Pro 或 Max 订阅，电脑上装好 Claude Code（claude 命令）。', 'Needs a Claude Pro or Max subscription and Claude Code (the claude command) on your computer.'),
-    steps: (os) => [
+    steps: (os, signup) => [
       L(...TERMINAL[os]),
       html`${L('复制下面的命令，粘贴到终端里，按回车。', 'Copy this command, paste it into the terminal and press Return.')}<${Cmd} text="claude setup-token" />`,
       L('浏览器会打开 Claude 的授权页，登录并点同意。', 'A browser page opens: sign in to Claude and approve.'),
       L('回到终端，最后会出现一长串以 sk-ant-oat01- 开头的字符。选中这一整串，复制。', 'Back in the terminal, the last thing shown is a long string starting with sk-ant-oat01-. Select all of it and copy.'),
-      L('回到这个页面，点下面的“粘贴”，再点“保存”。', 'Come back here, click Paste below, then Save.'),
+      signup ? L('回到这个页面，点下面的“粘贴”，填好其余各项后点“注册”。', 'Come back here, click Paste below, fill in the rest and click Register.') : L('回到这个页面，点下面的“粘贴”，再点“保存”。', 'Come back here, click Paste below, then Save.'),
     ] },
   { id: 'codex', name: 'Codex', place: '{ "tokens": { … } }', file: true,
     need: () => L('需要 ChatGPT Plus 或 Pro 订阅，电脑上装好 Codex（codex 命令）。这一步会为 AI Scientist 单独登录一次，不影响你平时用的 Codex。', 'Needs a ChatGPT Plus or Pro subscription and Codex (the codex command) on your computer. This makes a separate login just for AI Scientist; the Codex you normally use is not touched.'),
-    steps: (os) => [
+    steps: (os, signup) => [
       L(...TERMINAL[os]),
       html`${L('复制下面的命令，粘贴到终端里，按回车。', 'Copy this command, paste it into the terminal and press Return.')}<${Cmd} text=${CODEX_CMD[os]} />`,
       L('浏览器会打开 ChatGPT 的登录页，登录并点同意。', 'A browser page opens: sign in to ChatGPT and approve.'),
       os === 'linux'
         ? L('回到终端，会显示一段以 { 开头、以 } 结尾的内容。从 { 到 } 全部选中，复制。', 'Back in the terminal, a block from { to } is shown. Select all of it, from { to }, and copy.')
         : L('终端出现 Copied 字样，说明登录内容已经复制好了，不用再选什么。', 'When the terminal says Copied, the login is already on your clipboard; nothing to select.'),
-      L('回到这个页面，点下面的“粘贴”，再点“保存”。', 'Come back here, click Paste below, then Save.'),
+      signup ? L('回到这个页面，点下面的“粘贴”，填好其余各项后点“注册”。', 'Come back here, click Paste below, fill in the rest and click Register.') : L('回到这个页面，点下面的“粘贴”，再点“保存”。', 'Come back here, click Paste below, then Save.'),
     ] },
 ];
+
+// The same checks the database makes in set_agent_token, so a mistake shows before anything is saved.
+function loginProblem(vendor, text) {
+  const t = text.trim();
+  if (vendor === 'claude') return /^sk-ant-oat01-[A-Za-z0-9_-]{20,}$/.test(t) && t.length <= 500 ? ''
+    : L('这不是 Claude Code 令牌：应该是一整串以 sk-ant-oat01- 开头的字符。', 'This is not a Claude Code token: it should be one string starting with sk-ant-oat01-.');
+  try { if (JSON.parse(t)?.tokens?.refresh_token) return ''; } catch {}
+  return L('这不是完整的 Codex 登录内容：请按步骤重新运行命令，再点“粘贴”。', 'This is not a complete Codex login: run the command again as described, then click Paste.');
+}
+
+function LoginSteps({ v, val, setVal, onErr, signup }) {
+  const [os, setOs] = useState(myOs);
+  const paste = () => navigator.clipboard.readText().then((t) => setVal(t.trim()), () => onErr(L('浏览器不让网页直接读剪贴板。请点一下下面的输入框，按 Command+V（Windows 按 Ctrl+V）粘贴。', 'The browser did not let the page read the clipboard. Click the box below and press Command+V (Ctrl+V on Windows).')));
+  return html`<p>${v.need()}</p>
+    <div class="pt-tabs os">${OSES.map(([k, n]) => html`<button type="button" class=${os === k ? 'on' : ''} onClick=${() => setOs(k)}>${n}</button>`)}</div>
+    <ol class="pt-steps-list">${v.steps(os, signup).map((x) => html`<li>${x}</li>`)}</ol>
+    <textarea required rows=${v.file ? 6 : 2} spellcheck="false" autocomplete="off" placeholder=${v.place} value=${val} onInput=${(e) => setVal(e.target.value)}></textarea>
+    <div class="pt-actions"><button type="button" class="pt-btn sm" onClick=${paste}>${L('粘贴', 'Paste')}</button></div>`;
+}
 
 function Agents({ me, setup, onDone }) {
   const d = useLoad(() => api.rows(`agent_tokens?owner=eq.${me.id}&select=vendor,hint,status,note,created_at,updated_at,checked_at`), [me.id], 10000);
@@ -593,13 +625,13 @@ function Agents({ me, setup, onDone }) {
   const [val, setVal] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
-  const [os, setOs] = useState(myOs);
   useEffect(() => { document.title = L('Agent 登录 · AI Scientist', 'Agent logins · AI Scientist'); }, [LANG]);
-  const paste = () => navigator.clipboard.readText().then((t) => setVal(t.trim()), () => setErr(L('浏览器不让网页直接读剪贴板。请点一下下面的输入框，按 Command+V（Windows 按 Ctrl+V）粘贴。', 'The browser did not let the page read the clipboard. Click the box below and press Command+V (Ctrl+V on Windows).')));
   const have = d.data || [];
   const begin = (v) => { setOpen(open === v ? '' : v); setVal(''); setErr(''); };
   async function save(e, vendor) {
     e.preventDefault();
+    const bad = loginProblem(vendor, val);
+    if (bad) { setErr(bad); return; }
     setBusy(true); setErr('');
     try { await api.rpc('set_agent_token', { vendor, secret: val }); setVal(''); setOpen(''); d.reload(); onDone?.(); }
     catch (e2) { setErr(problem(e2)); }
@@ -610,6 +642,7 @@ function Agents({ me, setup, onDone }) {
   return html`<${Shell} me=${me} page="agents">
     <${Head} title=${L('Agent 登录', 'Agent logins')} sub=${L('你的任务用你自己的 Claude Code 或 Codex 订阅运行。至少提供一个，两个都提供时两边都能用上。', 'Your tasks run on your own Claude Code or Codex subscription. Give at least one; with both, each can be used.')} />
     ${setup && html`<${Note}>${L('提交任务前，请先提供一个 Agent 登录。', 'Before you submit a task, give one agent login.')}<//>`}
+    ${!setup && !me.token_required && html`<p class="pt-fine left">${L('你的账号注册得早，不提供也能照常提交；提供以后，你的任务就用你自己的订阅运行。', 'Your account predates this requirement, so you can submit without a login; once you give one, your tasks run on your own subscription.')}</p>`}
     ${(err || d.error) && html`<${Note} bad>${err || d.error}<//>`}
     ${d.loading ? html`<div class="pt-wait">${L('载入中', 'Loading')}</div>` : VENDORS.map((v) => {
       const t = have.find((x) => x.vendor === v.id);
@@ -624,12 +657,8 @@ function Agents({ me, setup, onDone }) {
               : t.note && html`<p class="pt-fine left">${t.note}</p>`}`
           : html`<p class="mut">${L('还没有提供', 'Not given yet')}</p>`}
         ${open === v.id && html`<form class="pt-give" onSubmit=${(e) => save(e, v.id)}>
-          <p>${v.need()}</p>
-          <div class="pt-tabs os">${OSES.map(([k, n]) => html`<button type="button" class=${os === k ? 'on' : ''} onClick=${() => setOs(k)}>${n}</button>`)}</div>
-          <ol class="pt-steps-list">${v.steps(os).map((x) => html`<li>${x}</li>`)}</ol>
-          <textarea required rows=${v.file ? 6 : 2} spellcheck="false" autocomplete="off" placeholder=${v.place} value=${val} onInput=${(e) => setVal(e.target.value)}></textarea>
-          <div class="pt-actions"><button type="button" class="pt-btn sm" onClick=${paste}>${L('粘贴', 'Paste')}</button>
-            <button class="pt-btn pri" disabled=${busy || !val.trim()}>${busy ? L('正在保存', 'Saving') : L('保存', 'Save')}</button></div>
+          <${LoginSteps} v=${v} val=${val} setVal=${setVal} onErr=${setErr} />
+          <div class="pt-actions"><button class="pt-btn pri" disabled=${busy || !val.trim()}>${busy ? L('正在保存', 'Saving') : L('保存', 'Save')}</button></div>
         </form>`}
       </section>`;
     })}
