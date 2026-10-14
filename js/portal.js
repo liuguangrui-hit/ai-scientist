@@ -201,6 +201,8 @@ function Submit({ me }) {
   const [busy, setBusy] = useState('');
   const [err, setErr] = useState('');
   const put = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const logins = useLoad(() => api.rows(`agent_tokens?owner=eq.${me.id}&select=vendor,status,note`), [me.id]);
+  const trouble = logins.data && loginTrouble(logins.data, me.token_required, true);
   useEffect(() => { document.title = L('提交任务 · AI Scientist', 'Submit a task · AI Scientist'); }, [LANG]);
   const all = stages.data || [];
   const order = (ids) => all.filter((s) => ids.includes(s.id)).map((s) => s.id);
@@ -224,6 +226,7 @@ function Submit({ me }) {
   return html`<${Shell} me=${me} page="submit" wide>
     <${Head} title=${L('提交任务', 'Submit a task')} sub=${L('写清楚你想得到什么。系统会按你的目标和已有材料规划要做的步骤，管理员审核通过后开始。', 'Say what you want back. The system plans the steps from your objective and what you already have; work starts once an administrator approves it.')} />
     ${stages.error && html`<${Note} bad>${stages.error}<//>`}
+    ${trouble && html`<${Note} bad=${!logins.data.some((x) => x.status === 'unchecked')}>${trouble} <a href=${href('/agents')}>${L('打开 Agent 登录页', 'Open Agent logins')}</a><//>`}
     <form class="pt-form" onSubmit=${submit}>
       <section class="pt-card">
         <div class="pt-sec"><h2><em>1</em>${L('说明任务', 'Describe the task')}</h2></div>
@@ -361,14 +364,20 @@ function Task({ me, q }) {
     api.rows(`task_events?task_id=eq.${q.id}&select=*&order=at`),
     api.rows(`task_files?task_id=eq.${q.id}&select=*&order=created_at`),
     api.stages(),
+    api.rows(`tasks?id=eq.${q.id}&select=owner`).then((r) => (r[0] ? Promise.all([
+      api.rows(`agent_tokens?owner=eq.${r[0].owner}&select=vendor,status,note`),
+      api.rows(`profiles?id=eq.${r[0].owner}&select=token_required`).then((p) => !!p[0]?.token_required),
+    ]) : [[], false])).catch(() => [[], false]),
   ]), [q.id], 15000);
   const [more, setMore] = useState([]);
   const [busy, setBusy] = useState('');
   const [failed, setFailed] = useState(() => { try { return JSON.parse(sessionStorage.getItem('aisp.failed.' + q.id)) || []; } catch { return []; } });
-  const [task, events, files, stages] = d.data || [null, [], [], []];
+  const [task, events, files, stages, [logins, required] = [[], false]] = d.data || [null, [], [], []];
   useEffect(() => { if (task) document.title = `${task.title} · AI Scientist`; }, [task?.title]);
   if (d.loading) return html`<${Shell} me=${me} page="task"><div class="pt-wait">${L('载入中', 'Loading')}</div><//>`;
   if (!task) return html`<${Shell} me=${me} page="task"><${Note} bad>${d.error || L('没有这个任务，或你无权查看', 'No such task, or it is not yours to see')}<//><//>`;
+  const trouble = ['pending', 'queued', 'running'].includes(task.status) && loginTrouble(logins, required, task.owner === me.id);
+  const troubleBad = trouble && !logins.some((x) => x.status === 'unchecked');
 
   const finished = new Set(events.filter((e) => e.kind === 'stage_finished').map((e) => e.stage));
   const stateOf = (id) => (!task.stages.includes(id) ? null : task.status === 'done' || finished.has(id) ? 'done' : task.status === 'running' && task.current_stage === id ? 'run' : 'wait');
@@ -390,6 +399,7 @@ function Task({ me, q }) {
   return html`<${Shell} me=${me} page="task" wide>
     <a class="pt-back" href=${href(me.role === 'admin' && task.owner !== me.id ? '/admin' : '/tasks')}>← ${L('返回', 'Back')}</a>
     <${Head} title=${task.title} sub=${L('提交于 ', 'Submitted ') + when(task.created_at)}><${Badge} s=${task.status} /><//>
+    ${trouble && html`<${Note} bad=${troubleBad}>${trouble} ${task.owner === me.id && html`<a href=${href('/agents')}>${L('打开 Agent 登录页', 'Open Agent logins')}</a>`}<//>`}
 
     <section class="pt-card">
       <div class=${'pt-steps' + (stopped ? ' stopped' : '')}>
@@ -484,7 +494,7 @@ function Admin({ me, q }) {
 
     ${tab === 'tasks' && !d.loading && html`<div class="pt-list">${tasks.length ? tasks.map((t) => html`<div class="pt-row">
         <a class="main" href=${href('/task?id=' + t.id)}><b class="ell">${t.title}</b>
-          <span class="mut">${t.who?.full_name || t.who?.email || '—'} · ${loginsOf(t.owner).map((x) => (x.vendor === 'claude' ? 'Claude' : 'Codex')).join(' / ') || L('无 Agent 登录', 'no agent login')}${t.stages.length ? ' · ' + t.stages.map(title).join(' · ') : ''}</span></a>
+          <span class="mut">${t.who?.full_name || t.who?.email || '—'} · ${loginsOf(t.owner).map((x) => (x.vendor === 'claude' ? 'Claude' : 'Codex') + (x.status === 'failed' ? L('（不能用）', ' (broken)') : x.status === 'unchecked' ? L('（验证中）', ' (checking)') : '')).join(' / ') || L('无 Agent 登录', 'no agent login')}${t.stages.length ? ' · ' + t.stages.map(title).join(' · ') : ''}</span></a>
         <${Badge} s=${t.status} />
         <span class="mut num hide-s">${when(t.created_at)}</span>
         ${t.status === 'pending' && html`<button class="pt-btn pri sm" onClick=${() => decide(t, 'queued')}>${L('批准', 'Approve')}</button>
@@ -517,7 +527,15 @@ function Admin({ me, q }) {
 // ---------------------------------------------------------------- agent logins
 // A member's tasks run on the member's own Claude Code / Codex subscription. The login is kept
 // encrypted; pages show only a masked hint, its state and when it was given, to the member and admins.
-const LOGIN_STATE = { unchecked: ['未使用过', 'Not used yet', 'wait'], ok: ['可用', 'Working', 'pass'], failed: ['失效', 'Not working', 'fail'] };
+const LOGIN_STATE = { unchecked: ['正在验证', 'Checking', 'run'], ok: ['可用', 'Working', 'pass'], failed: ['不能用', 'Not working', 'fail'] };
+// What a task page says when the submitter's logins keep it from running; null when nothing is wrong.
+function loginTrouble(logins, required, mine) {
+  if (!logins.length) return required ? L(mine ? '你还没有提供 Agent 登录，任务无法开始。' : '提交人还没有提供 Agent 登录，任务无法开始。', mine ? 'You have not given an agent login, so the task cannot start.' : 'The submitter has not given an agent login, so the task cannot start.') : null;
+  if (logins.some((x) => x.status === 'ok')) return null;
+  if (logins.some((x) => x.status === 'unchecked')) return L('正在验证 Agent 登录，通常一两分钟内完成。', 'Checking the agent login; this usually takes a minute or two.');
+  return L(mine ? '你提供的 Agent 登录都不能用了（无效或已过期），任务暂停。请到 Agent 登录页按步骤重新提供，提供后任务会自动继续。' : '提交人的 Agent 登录都不能用了，任务暂停，等对方重新提供。',
+    mine ? 'None of your agent logins work (invalid or expired), so the task is paused. Give one again on the Agent logins page and the task carries on by itself.' : 'None of the submitter\'s agent logins work; the task is paused until they give one again.');
+}
 const LoginBadge = ({ s }) => html`<span class=${'pt-badge ' + (LOGIN_STATE[s]?.[2] || '')}><i></i>${L(...(LOGIN_STATE[s] || [s, s]).slice(0, 2))}</span>`;
 // Step-by-step, per operating system; the Codex command puts the login on the clipboard itself.
 const OSES = [['mac', 'macOS'], ['win', 'Windows'], ['linux', 'Linux']];
@@ -561,7 +579,7 @@ const VENDORS = [
 ];
 
 function Agents({ me, setup, onDone }) {
-  const d = useLoad(() => api.rows(`agent_tokens?owner=eq.${me.id}&select=vendor,hint,status,note,created_at,updated_at,checked_at`), [me.id]);
+  const d = useLoad(() => api.rows(`agent_tokens?owner=eq.${me.id}&select=vendor,hint,status,note,created_at,updated_at,checked_at`), [me.id], 10000);
   const [open, setOpen] = useState('');
   const [val, setVal] = useState('');
   const [busy, setBusy] = useState(false);
@@ -592,7 +610,9 @@ function Agents({ me, setup, onDone }) {
             <button type="button" class=${'pt-btn sm' + (t ? '' : ' pri')} onClick=${() => begin(v.id)}>${t ? L('更换', 'Replace') : L('提供', 'Give')}</button></div></div>
         ${t ? html`<div class="pt-login"><b class="mono">${t.hint}</b><${LoginBadge} s=${t.status} />
             <span class="mut num">${L('提供于 ', 'Given ') + when(t.updated_at)}${t.checked_at ? L('，最近使用 ', ', last used ') + when(t.checked_at) : ''}</span></div>
-            ${t.note && html`<p class="pt-fine left">${t.note}</p>`}`
+            ${t.status === 'unchecked' && html`<p class="pt-fine left">${L('保存后系统会用它做一次很小的真实调用，确认能用，通常一两分钟内出结果，本页自动刷新。', 'After saving, the system makes one tiny real call with it to confirm it works. The result usually comes within a minute or two; this page refreshes by itself.')}</p>`}
+            ${t.status === 'failed' ? html`<${Note} bad>${t.note || L('这个登录不能用。', 'This login does not work.')}${L(' 点右上角“更换”，按步骤重新提供。', ' Click Replace and follow the steps again.')}<//>`
+              : t.note && html`<p class="pt-fine left">${t.note}</p>`}`
           : html`<p class="mut">${L('还没有提供', 'Not given yet')}</p>`}
         ${open === v.id && html`<form class="pt-give" onSubmit=${(e) => save(e, v.id)}>
           <p>${v.need()}</p>
