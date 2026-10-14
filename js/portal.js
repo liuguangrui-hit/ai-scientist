@@ -54,7 +54,8 @@ function Shell({ me, page, children, wide }) {
       <span class=${'pt-site ' + SITE} title=${L('两个站的账号与任务互相独立', 'The two sites keep separate accounts and tasks')}>${siteName()}</span>
       <a class=${'hide-s' + (page === 'about' ? ' on' : '')} href=${href('/about')}>${L('系统介绍', 'About')}</a>
       ${me && html`<a class=${page === 'submit' ? 'on' : ''} href=${href('/submit')}>${L('提交任务', 'Submit')}</a>
-        <a class=${page === 'tasks' || page === 'task' ? 'on' : ''} href=${href('/tasks')}>${L('我的任务', 'My tasks')}</a>`}
+        <a class=${page === 'tasks' || page === 'task' ? 'on' : ''} href=${href('/tasks')}>${L('我的任务', 'My tasks')}</a>
+        <a class=${page === 'agents' ? 'on' : ''} href=${href('/agents')}>${L('Agent 登录', 'Agent logins')}</a>`}
       ${me?.role === 'admin' && html`<a class=${page === 'admin' ? 'on' : ''} href=${href('/admin')}>${L('管理', 'Admin')}</a>`}
       <div class="grow"></div>
       <button class="pt-ghost" onClick=${() => setLang(LANG === 'zh' ? 'en' : 'zh')}>${LANG === 'zh' ? 'EN' : '中文'}</button>
@@ -116,6 +117,7 @@ function Login({ q }) {
         </form>
       </div>
       <p class="pt-fine">${L('本系统为邀请制，邀请码由管理员发放。', 'Access is by invitation. Invite codes come from the administrator.')}</p>
+      ${mode === 'up' && html`<p class="pt-fine">${L('注册后需要提供你自己的 Claude Code 或 Codex 订阅登录，你的任务用它运行。', 'After registering you give your own Claude Code or Codex subscription login; your tasks run on it.')}</p>`}
       ${SITE === 'cloud' && html`<div class="pt-where">
         <b>${L('你现在在校外站', 'You are on the off-campus site')}</b>
         <p>${L('校内站和校外站的账号是分开的，在校内注册的账号不能在这里登录，校内提交的任务也不在这里显示。', 'The campus site and this one keep separate accounts: an account registered on campus cannot sign in here, and tasks submitted there are not shown here.')}</p>
@@ -211,7 +213,10 @@ function Submit({ me }) {
     try {
       task = await api.insert('tasks', { title: f.title.trim(), description: f.description.trim(), objective: f.objective.trim(), data_note: f.data_note.trim(), stages: picked,
         constraints: Object.fromEntries(ALLOW.map(([k]) => [k, !!allow[k]])) });
-    } catch (e2) { setErr(problem(e2)); setBusy(''); return; }
+    } catch (e2) {
+      setErr(/row-level security/i.test(problem(e2)) ? L('提交前请先在 Agent 登录页提供你的 Claude Code 或 Codex 登录。', 'Give your Claude Code or Codex login on the Agent logins page before submitting.') : problem(e2));
+      setBusy(''); return;
+    }
     const failed = await upload(task.id, files, (i, n) => setBusy(L(`正在上传附件 ${i}/${n}`, `Uploading file ${i} of ${n}`)));
     if (failed.length) { try { sessionStorage.setItem('aisp.failed.' + task.id, JSON.stringify(failed)); } catch {} }
     go('/task?id=' + task.id);
@@ -444,13 +449,18 @@ function Admin({ me, q }) {
     api.rows('invites?select=*,user:profiles!invites_used_by_fkey(full_name,email)&order=created_at.desc'),
     api.rows('profiles?select=*&order=created_at'),
     api.stages(),
+    api.rows('agent_tokens?select=owner,vendor,hint,status,updated_at').catch(() => []),
   ]), [], 20000);
   const [note, setNote] = useState('');
   const [mail, setMail] = useState('');
   const [err, setErr] = useState('');
   useEffect(() => { document.title = L('管理 · AI Scientist', 'Admin · AI Scientist'); }, [LANG]);
   if (me.role !== 'admin') return html`<${Shell} me=${me}><${Note} bad>${L('需要管理员权限', 'Administrators only')}<//><//>`;
-  const [tasks, invites, people, stages] = d.data || [[], [], [], []];
+  const [tasks, invites, people, stages, logins] = d.data || [[], [], [], [], []];
+  const loginsOf = (id) => logins.filter((x) => x.owner === id);
+  const Logins = ({ p }) => { const ls = loginsOf(p.id); return ls.length
+    ? html`<span class="pt-logins">${ls.map((x) => html`<span class="pt-login sm" title=${L('提供于 ', 'Given ') + when(x.updated_at)}><b>${x.vendor === 'claude' ? 'Claude' : 'Codex'}</b><span class="mono">${x.hint}</span><${LoginBadge} s=${x.status} /></span>`)}</span>`
+    : html`<span class=${p.token_required ? 'pt-badge fail' : 'mut'}>${p.token_required ? L('未提供登录', 'No login') : L('老用户，免提供', 'Early member, exempt')}</span>`; };
   const title = (id) => { const s = stages.find((x) => x.id === id); return s ? sl(s, 'title') : id; };
   const act = (p) => p.then(() => { setErr(''); d.reload(); }, (e) => setErr(problem(e)));
   const decide = (t, status) => {
@@ -474,7 +484,7 @@ function Admin({ me, q }) {
 
     ${tab === 'tasks' && !d.loading && html`<div class="pt-list">${tasks.length ? tasks.map((t) => html`<div class="pt-row">
         <a class="main" href=${href('/task?id=' + t.id)}><b class="ell">${t.title}</b>
-          <span class="mut">${t.who?.full_name || t.who?.email || '—'} · ${t.stages.map(title).join(' · ')}</span></a>
+          <span class="mut">${t.who?.full_name || t.who?.email || '—'} · ${loginsOf(t.owner).map((x) => (x.vendor === 'claude' ? 'Claude' : 'Codex')).join(' / ') || L('无 Agent 登录', 'no agent login')}${t.stages.length ? ' · ' + t.stages.map(title).join(' · ') : ''}</span></a>
         <${Badge} s=${t.status} />
         <span class="mut num hide-s">${when(t.created_at)}</span>
         ${t.status === 'pending' && html`<button class="pt-btn pri sm" onClick=${() => decide(t, 'queued')}>${L('批准', 'Approve')}</button>
@@ -496,10 +506,75 @@ function Admin({ me, q }) {
 
     ${tab === 'people' && !d.loading && html`<div class="pt-list">${people.map((p) => html`<div class="pt-row">
         <div class="main"><b>${p.full_name || '—'}</b><span class="mut">${p.email}</span></div>
+        <${Logins} p=${p} />
         <span class="mut">${tasks.filter((t) => t.owner === p.id).length} ${L('个任务', 'tasks')}</span>
         <span class=${'pt-badge ' + (p.role === 'admin' ? 'run' : '')}>${p.role === 'admin' ? L('管理员', 'Admin') : L('成员', 'Member')}</span>
         <span class="mut num hide-s">${when(p.created_at)}</span>
       </div>`)}</div>`}
+  <//>`;
+}
+
+// ---------------------------------------------------------------- agent logins
+// A member's tasks run on the member's own Claude Code / Codex subscription. The login is kept
+// encrypted; pages show only a masked hint, its state and when it was given, to the member and admins.
+const LOGIN_STATE = { unchecked: ['未使用过', 'Not used yet', 'wait'], ok: ['可用', 'Working', 'pass'], failed: ['失效', 'Not working', 'fail'] };
+const LoginBadge = ({ s }) => html`<span class=${'pt-badge ' + (LOGIN_STATE[s]?.[2] || '')}><i></i>${L(...(LOGIN_STATE[s] || [s, s]).slice(0, 2))}</span>`;
+const CODEX_CMD = 'export CODEX_HOME="$(mktemp -d)"; codex login && cat "$CODEX_HOME/auth.json"';
+const CODEX_CMD_WIN = '$env:CODEX_HOME = (New-Item -ItemType Directory -Path (Join-Path $env:TEMP ("codex-ais-" + [guid]::NewGuid()))).FullName; codex login; Get-Content "$env:CODEX_HOME\\auth.json"';
+const VENDORS = [
+  { id: 'claude', name: 'Claude Code',
+    how: () => html`<p>${L('需要 Claude Pro 或 Max 订阅。在自己电脑的终端里运行下面的命令，按提示在浏览器里登录，再把最后输出的、以 sk-ant-oat01- 开头的一行粘贴到这里。这个令牌一年有效。', 'Needs a Claude Pro or Max subscription. Run this in a terminal on your own computer, sign in in the browser when asked, then paste the last line it prints, starting with sk-ant-oat01-. The token lasts a year.')}</p>
+      <pre class="pt-cmd">claude setup-token</pre>`,
+    place: 'sk-ant-oat01-…' },
+  { id: 'codex', name: 'Codex',
+    how: () => html`<p>${L('需要 ChatGPT Plus 或 Pro 订阅。下面的命令为 AI Scientist 单独登录一次，不影响你电脑上原来的 Codex。登录后把输出的整段内容粘贴到这里，或选择命令里那个 auth.json 文件。这份登录只给 AI Scientist 用，不要再拿去别处使用。', 'Needs a ChatGPT Plus or Pro subscription. The command makes a separate login just for AI Scientist and leaves the Codex on your computer as it is. Paste everything it prints, or pick that auth.json file. Use this login for AI Scientist only.')}</p>
+      <span class="mut">macOS / Linux</span><pre class="pt-cmd">${CODEX_CMD}</pre>
+      <span class="mut">Windows PowerShell</span><pre class="pt-cmd">${CODEX_CMD_WIN}</pre>`,
+    place: '{ "tokens": { … } }', file: true },
+];
+
+function Agents({ me, setup, onDone }) {
+  const d = useLoad(() => api.rows(`agent_tokens?owner=eq.${me.id}&select=vendor,hint,status,note,created_at,updated_at,checked_at`), [me.id]);
+  const [open, setOpen] = useState('');
+  const [val, setVal] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  useEffect(() => { document.title = L('Agent 登录 · AI Scientist', 'Agent logins · AI Scientist'); }, [LANG]);
+  const have = d.data || [];
+  const begin = (v) => { setOpen(open === v ? '' : v); setVal(''); setErr(''); };
+  async function save(e, vendor) {
+    e.preventDefault();
+    setBusy(true); setErr('');
+    try { await api.rpc('set_agent_token', { vendor, secret: val }); setVal(''); setOpen(''); d.reload(); onDone?.(); }
+    catch (e2) { setErr(problem(e2)); }
+    finally { setBusy(false); }
+  }
+  const drop = (v) => confirm(L(`删除你的 ${v.name} 登录？之后你的任务不能再用它运行。`, `Remove your ${v.name} login? Your tasks can no longer run on it.`))
+    && api.rpc('delete_agent_token', { vendor: v.id }).then(d.reload, (e) => setErr(problem(e)));
+  const readFile = (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) f.text().then(setVal); };
+  return html`<${Shell} me=${me} page="agents">
+    <${Head} title=${L('Agent 登录', 'Agent logins')} sub=${L('你的任务用你自己的 Claude Code 或 Codex 订阅运行。至少提供一个，两个都提供时两边都能用上。', 'Your tasks run on your own Claude Code or Codex subscription. Give at least one; with both, each can be used.')} />
+    ${setup && html`<${Note}>${L('提交任务前，请先提供一个 Agent 登录。', 'Before you submit a task, give one agent login.')}<//>`}
+    ${(err || d.error) && html`<${Note} bad>${err || d.error}<//>`}
+    ${d.loading ? html`<div class="pt-wait">${L('载入中', 'Loading')}</div>` : VENDORS.map((v) => {
+      const t = have.find((x) => x.vendor === v.id);
+      return html`<section class="pt-card">
+        <div class="pt-sec"><h2>${v.name}</h2>
+          <div class="pt-quick">${t && html`<button type="button" class="pt-ghost" onClick=${() => drop(v)}>${L('删除', 'Remove')}</button>`}
+            <button type="button" class=${'pt-btn sm' + (t ? '' : ' pri')} onClick=${() => begin(v.id)}>${t ? L('更换', 'Replace') : L('提供', 'Give')}</button></div></div>
+        ${t ? html`<div class="pt-login"><b class="mono">${t.hint}</b><${LoginBadge} s=${t.status} />
+            <span class="mut num">${L('提供于 ', 'Given ') + when(t.updated_at)}${t.checked_at ? L('，最近使用 ', ', last used ') + when(t.checked_at) : ''}</span></div>
+            ${t.note && html`<p class="pt-fine left">${t.note}</p>`}`
+          : html`<p class="mut">${L('还没有提供', 'Not given yet')}</p>`}
+        ${open === v.id && html`<form class="pt-give" onSubmit=${(e) => save(e, v.id)}>
+          ${v.how()}
+          <textarea required rows=${v.file ? 6 : 2} spellcheck="false" autocomplete="off" placeholder=${v.place} value=${val} onInput=${(e) => setVal(e.target.value)}></textarea>
+          <div class="pt-actions">${v.file && html`<label class="pt-btn sm">${L('选择 auth.json', 'Pick auth.json')}<input type="file" accept=".json,application/json" hidden onChange=${readFile} /></label>`}
+            <button class="pt-btn pri" disabled=${busy || !val.trim()}>${busy ? L('正在保存', 'Saving') : L('保存', 'Save')}</button></div>
+        </form>`}
+      </section>`;
+    })}
+    <p class="pt-fine left">${L('登录加密保存。页面上只显示开头和结尾几位：你和管理员能看到你提供了哪个登录，看不到完整内容。系统只用它运行你本人提交的任务；额度用完时任务暂停，等额度恢复后继续，不会换用别人的账号。你可以随时在这里删除，或在 Claude、ChatGPT 的账户设置里注销这次登录。', 'Logins are stored encrypted. Pages show only the first and last few characters: you and the administrators can see which login you gave, never the whole of it. It is used only for tasks you submit; when its quota runs out the task waits for it to come back and never moves to someone else\'s account. Remove it here at any time, or sign this login out in your Claude or ChatGPT account settings.')}</p>
   <//>`;
 }
 
@@ -520,17 +595,21 @@ function Terms({ me, onDone }) {
 }
 
 // ---------------------------------------------------------------- app
-const PRIVATE = { submit: Submit, tasks: Tasks, task: Task, admin: Admin };
+const PRIVATE = { submit: Submit, tasks: Tasks, task: Task, admin: Admin, agents: Agents };
 function App() {
   const { page, q } = useRoute();
   const [, bump] = useState(0);
   const [me, setMe] = useState(undefined);       // undefined: not known yet; null: signed out
+  const [logins, setLogins] = useState(undefined); // how many agent logins a new account has given
   useEffect(() => onLang(() => bump((x) => x + 1)), []);
   useEffect(() => {
     const load = () => api.profile().then((p) => setMe(p ? p : api.user() ? { id: api.user().id, email: api.user().email, role: 'member' } : null));
     load();
     return api.onSession(load);
   }, []);
+  useEffect(() => {
+    if (me?.token_required) api.rows(`agent_tokens?owner=eq.${me.id}&select=vendor`).then((r) => setLogins(r.length), () => setLogins(undefined));
+  }, [me?.id, me?.token_required, page]);
   const Page = page === 'task' && q.remote ? RemoteTask : PRIVATE[page];
   useEffect(() => {
     if (Page && me === null) go('/login?next=' + encodeURIComponent(page + location.search), true);
@@ -540,6 +619,7 @@ function App() {
   if (page === 'about') return html`<${About} />`;
   if (page === 'login') return me ? null : html`<${Login} q=${q} />`;
   if (Page && me && me.agreed_at === null) return html`<${Terms} me=${me} onDone=${() => api.profile().then(setMe)} />`;
+  if (Page && me?.token_required && logins === 0 && page !== 'agents') return html`<${Agents} me=${me} setup onDone=${() => setLogins(1)} />`;
   if (Page) return me ? html`<${Page} me=${me} q=${q} key=${page + (q.id || q.remote || '')} />` : html`<${Shell} page=${page}><div class="pt-wait">${L('载入中', 'Loading')}</div><//>`;
   return html`<${Shell} me=${me}><div class="pt-empty"><p>${L('没有这个页面', 'Page not found')}</p><a class="pt-btn pri" href=${href('/')}>${L('回首页', 'Home')}</a></div><//>`;
 }
