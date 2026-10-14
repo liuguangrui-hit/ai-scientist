@@ -96,6 +96,10 @@
 .pt-allowed{list-style:none;margin:0;padding:0;font-size:13px;line-height:1.9}
 .pt-allowed .yes{color:var(--p-pass)} .pt-allowed .no{color:var(--p-mut)}
 
+.pt-check.terms{margin:2px 0 16px;cursor:default}
+.pt-terms-h{margin:0 0 12px;font-size:17px;font-weight:600}
+.pt-terms{margin:0 0 18px;line-height:1.85;color:#C9CFDA;font-size:14px}
+
 /* the flow chart */
 .pt-flow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:16px 26px}
 .pt-stage{position:relative;min-height:116px;text-align:left;padding:13px 14px 14px;border-radius:12px;border:1px solid var(--p-line);background:rgba(255,255,255,.025);

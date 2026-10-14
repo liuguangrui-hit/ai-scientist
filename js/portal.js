@@ -14,6 +14,11 @@ const nameOf = (site) => (site === 'lab' ? L('校内站', 'Campus site') : L('�
 const siteName = () => nameOf(SITE);
 const Where = ({ site }) => html`<span class=${'pt-site sm ' + site}>${site === 'lab' ? L('校内', 'Campus') : L('校外', 'Off-campus')}</span>`;
 
+// The terms every user accepts: using the system means contributing to its shared library.
+const TERMS = () => L(
+  '使用 AI Scientist 即表示同意：你提交的任务、附件，以及系统为你产生的研究成果，将纳入系统共享库，可被系统与其他任务借鉴和使用。是否允许修改你的想法、改写你的论文、新做实验，由你在每次提交时选择。',
+  'Using AI Scientist means you agree that the tasks and attachments you submit, and the research results the system produces for you, join the shared library, where the system and other tasks may learn from and use them. Whether your idea may be changed, your paper rewritten or new experiments run is your choice on each submission.');
+
 const STATUS = {
   pending: ['待审核', 'Awaiting review', 'wait'],
   queued: ['排队中', 'Queued', 'queue'],
@@ -102,6 +107,8 @@ function Login({ q }) {
             <${Field} label=${L('邀请码', 'Invite code')}><input required value=${f.invite} onInput=${put('invite')} autocomplete="off" spellcheck="false" /><//>
             <${Field} label=${L('姓名', 'Name')}><input required maxlength="80" value=${f.fullName} onInput=${put('fullName')} autocomplete="name" /><//>`}
           <${Field} label=${L('邮箱', 'E-mail')}><input required type="email" value=${f.email} onInput=${put('email')} autocomplete="email" /><//>
+          ${mode === 'up' && html`<label class="pt-check terms"><input required type="checkbox" />
+            <span><b>${L('我已阅读并同意使用协议', 'I have read and accept the terms of use')}</b><span class="h">${TERMS()}</span></span></label>`}
           <${Field} label=${L('密码', 'Password')} hint=${mode === 'up' && L('至少 8 位', 'At least 8 characters')}>
             <input required type="password" value=${f.password} onInput=${put('password')} autocomplete=${mode === 'in' ? 'current-password' : 'new-password'} /><//>
           ${msg && html`<${Note} bad=${msg.bad}>${msg.text}<//>`}
@@ -181,7 +188,6 @@ const ALLOW = [
   ['allow_idea_change', ['允许修改我的想法和核心主张', 'You may change my idea and core claims'], ['不勾选时，你的想法原样保留，系统只在其基础上工作并给出建议', 'Unticked: your idea is kept as it is; the system builds on it and only suggests changes']],
   ['allow_text_rewrite', ['允许改写我已有的论文文本', 'You may rewrite my existing paper text'], ['不勾选时，只在必须修改处改动，或只给修改意见', 'Unticked: only necessary edits, or comments only']],
   ['allow_new_experiments', ['允许新做实验（会使用 GPU 服务器）', 'You may run new experiments (uses GPU servers)'], ['不勾选时，只使用你已有的结果和数据', 'Unticked: only your existing results and data are used']],
-  ['allow_sharing', ['允许把研究成果纳入系统共享库', 'You may add the research results to the shared library'], ['勾选后，结论可能被系统其他任务借鉴；不勾选则只交付给你', 'Ticked: other tasks in the system may learn from the findings; unticked: delivered to you only']],
 ];
 
 function Submit({ me }) {
@@ -233,6 +239,7 @@ function Submit({ me }) {
 
       <section class="pt-card">
         <div class="pt-sec"><h2><em>3</em>${L('你允许系统做什么', 'What the system may do')}</h2></div>
+        <p class="pt-fine left">${L('按使用协议，本任务的研究成果会纳入系统共享库。', 'Under the terms of use, the research results of this task join the shared library.')}</p>
         <div class="pt-allow">${ALLOW.map(([k, label, hint]) => html`<label class=${'pt-check' + (allow[k] ? ' on' : '')}>
           <input type="checkbox" checked=${!!allow[k]} onChange=${(e) => setAllow({ ...allow, [k]: e.target.checked })} />
           <span><b>${L(...label)}</b><span class="h">${L(...hint)}</span></span></label>`)}</div>
@@ -496,6 +503,22 @@ function Admin({ me, q }) {
   <//>`;
 }
 
+// ---------------------------------------------------------------- terms, once, for accounts made before them
+function Terms({ me, onDone }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const accept = () => { setBusy(true); api.rpc('accept_terms', {}).then(() => { api.forgetProfile(); onDone(); }, (e) => { setErr(problem(e)); setBusy(false); }); };
+  return html`<${Shell} me=${me} page="terms">
+    <div class="pt-auth"><div class="pt-card">
+      <h2 class="pt-terms-h">${L('使用协议', 'Terms of use')}</h2>
+      <p class="pt-terms">${TERMS()}</p>
+      ${err && html`<${Note} bad>${err}<//>`}
+      <button class="pt-btn pri" disabled=${busy} onClick=${accept}>${L('同意并继续', 'Accept and continue')}</button>
+      <button class="pt-btn" style="margin-top:8px" onClick=${() => api.signOut().then(() => go('/'))}>${L('不同意，退出', 'Decline and sign out')}</button>
+    </div></div>
+  <//>`;
+}
+
 // ---------------------------------------------------------------- app
 const PRIVATE = { submit: Submit, tasks: Tasks, task: Task, admin: Admin };
 function App() {
@@ -516,6 +539,7 @@ function App() {
   if (page === '') return html`<${Hero} key=${LANG + (me ? 1 : 0)} />`;
   if (page === 'about') return html`<${About} />`;
   if (page === 'login') return me ? null : html`<${Login} q=${q} />`;
+  if (Page && me && me.agreed_at === null) return html`<${Terms} me=${me} onDone=${() => api.profile().then(setMe)} />`;
   if (Page) return me ? html`<${Page} me=${me} q=${q} key=${page + (q.id || q.remote || '')} />` : html`<${Shell} page=${page}><div class="pt-wait">${L('载入中', 'Loading')}</div><//>`;
   return html`<${Shell} me=${me}><div class="pt-empty"><p>${L('没有这个页面', 'Page not found')}</p><a class="pt-btn pri" href=${href('/')}>${L('回首页', 'Home')}</a></div><//>`;
 }

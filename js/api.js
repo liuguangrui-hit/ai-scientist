@@ -32,7 +32,7 @@ const auth = (path, body, token) => fetch(`${URL_}/auth/v1/${path}`, {
 // ---------------------------------------------------------------- account
 const withExpiry = (s) => ({ ...s, expires_at: s.expires_at || Math.floor(Date.now() / 1000) + (s.expires_in || 3600) });
 export async function signUp({ email, password, fullName, invite }) {
-  const s = await auth('signup', { email, password, data: { full_name: fullName, invite_code: invite } });
+  const s = await auth('signup', { email, password, data: { full_name: fullName, invite_code: invite, agree_terms: 'true' } });
   if (s?.access_token) { keep(withExpiry(s)); return { signedIn: true }; }
   return { signedIn: false };            // the project asks for e-mail confirmation first
 }
@@ -72,6 +72,7 @@ export async function rpc(name, args) {
 }
 
 let profileCache = null;
+export const forgetProfile = () => { profileCache = null; };
 export function profile() {
   if (!session) return Promise.resolve(null);
   profileCache ||= rows(`profiles?id=eq.${session.user.id}&select=*`).then((r) => r[0] || null).catch(() => { profileCache = null; return null; });
