@@ -1,33 +1,21 @@
 <!doctype html>
-<html lang="zh-CN" data-look="v2">
+<html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<base href="/ai-scientist/">
-<meta name="ais-snapshot" content="/ai-scientist/">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>AI Scientist</title>
-<meta name="description" content="AI Scientist: submit a research task, choose the stages to run, and follow its progress.">
-<meta name="theme-color" content="#0A0C10">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;700&display=swap">
-<link rel="stylesheet" href="css/app.css">
-<link rel="stylesheet" href="css/landing.css">
-<link rel="stylesheet" href="css/system-map.css">
-<link rel="stylesheet" href="css/look-v2.css">
-<link rel="stylesheet" href="css/portal.css">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232F5FE0' stroke-width='1.8'%3E%3Ccircle cx='12' cy='5' r='2.4'/%3E%3Ccircle cx='5.5' cy='18' r='2.4'/%3E%3Ccircle cx='18.5' cy='18' r='2.4'/%3E%3Cpath d='M12 7.4v4.2M10.6 13.4 7 15.8M13.4 13.4 17 15.8'/%3E%3C/svg%3E">
+<!-- The off-campus copy of the portal has been retired: one site now serves everyone, on campus or not. -->
+<meta http-equiv="refresh" content="0;url=https://ais-lab.liuguangrui.top/">
+<style>:root{color-scheme:dark}body{margin:0;min-height:100vh;display:grid;place-items:center;background:#070A11;color:#8B94A6;font:14px -apple-system,BlinkMacSystemFont,'PingFang SC',sans-serif}a{color:#7DA2FF}</style>
 </head>
 <body>
-<div id="app"></div>
-<noscript><div style="padding:40px;font-family:sans-serif;max-width:640px;margin:0 auto">
-  <h1>AI Scientist</h1>
-  <p>This site needs JavaScript.</p>
-</div></noscript>
-<script src="config.js"></script>
-<script src="forest/lib/data.js"></script>
-<script src="forest/lib/sim.js"></script>
-<script type="module" src="js/portal.js"></script>
+<p>AI Scientist 已合并为一个站，<a id="go" href="https://ais-lab.liuguangrui.top/">点这里进入</a>。</p>
+<script>
+  var rest = location.pathname.replace(/^\/ai-scientist/, '') + location.search + location.hash;
+  var to = 'https://ais-lab.liuguangrui.top' + (rest || '/');
+  document.getElementById('go').href = to;
+  location.replace(to);
+</script>
 </body>
 </html>
