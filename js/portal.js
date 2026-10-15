@@ -122,7 +122,7 @@ function Login({ q }) {
             <input required type="password" value=${f.password} onInput=${put('password')} autocomplete=${mode === 'in' ? 'current-password' : 'new-password'} /><//>
           ${mode === 'up' && html`<div class="pt-give signup">
             <span class="k">${L('你的 Agent 登录（至少一个）', 'Your agent login (at least one)')}</span>
-            <p class="pt-fine left">${L('任务用你自己的订阅运行。先提供一个，以后可以再加：两家都有时一家做、一家审，结果更可靠；同一家多个账号，额度用完自动换下一个，任务不用停。', 'Tasks run on your own subscription. Give one now and add more later: with both kinds, one does the work and the other checks it; with several accounts, the task moves on when one runs out.')}</p>
+            <p class="pt-fine left">${L('任务用你自己的订阅运行。先提供一个，以后可再加：审计更准，质量更高，避免中断。', 'Tasks run on your own subscription. Give one now; adding more later means sharper audits, better results and no stalls.')}</p>
             <div class="pt-tabs os">${VENDORS.map((v) => html`<button type="button" class=${vendor === v.id ? 'on' : ''} onClick=${() => { setVendor(v.id); setLogin(''); }}>${v.name}</button>`)}</div>
             <${LoginSteps} key=${vendor} v=${VENDORS.find((v) => v.id === vendor)} val=${login} setVal=${setLogin} onErr=${(m) => setMsg({ bad: true, text: m })} signup />
           </div>`}
@@ -651,17 +651,9 @@ function LoginSteps({ v, val, setVal, onErr, signup }) {
 }
 
 const MAX_LOGINS = 5;
-// Why give more than one: shown where members add logins, so they know what each extra one buys them.
-const WHY_MORE = () => [
-  [L('两家都提供，审得更准', 'Both kinds: sharper review'),
-   L('系统里做方案、跑实验的是 Codex，写作、分析和审查的是 Claude，一家做完由另一家来审。两家模型训练方式不同，更容易发现对方自己看不出的问题。只提供一家时，做和审都由同一家完成，这一层把关就弱了。', 'In the system Codex plans and runs experiments while Claude writes, analyses and reviews, so each one\'s work is checked by the other. Trained differently, each catches mistakes the other cannot see in its own work. With only one kind, the same model both does and checks the work, and that safeguard is weaker.')],
-  [L('同一家多几个账号，任务不停', 'More accounts: the task keeps going'),
-   L('一个账号额度用完，任务自动换到你的下一个账号接着跑，不用停下来等几个小时恢复，整个任务完成得更快。', 'When one account runs out, the task moves to your next one and carries on instead of waiting hours for the quota, so the whole task finishes sooner.')],
-  [L('你自己用起来更宽裕', 'More room for your own use'),
-   L('任务的消耗分摊到几个账号上，你平时自己用的那个账号就不容易被任务占满。', 'Spread over several accounts, tasks are less likely to use up the account you rely on day to day.')],
-];
-const WhyMore = () => html`<section class="pt-card pt-why"><div class="pt-sec"><h2>${L('多提供几个登录，对你有什么好处', 'What more logins do for you')}</h2></div>
-  <div class="pt-why-list">${WHY_MORE().map(([h, t]) => html`<div><b>${h}</b><p>${t}</p></div>`)}</div></section>`;
+// Why give more than one, in a few words.
+const WhyMore = () => html`<div class="pt-why"><b>${L('多提供几个登录', 'Give more logins')}</b>${[L('审计更准', 'sharper audits'), L('质量更高', 'better results'), L('避免中断', 'no stalls')].map((x) => html`<span>${x}</span>`)}</div>`;
+
 function Agents({ me, setup, onDone }) {
   const d = useLoad(() => api.rows(`agent_tokens?owner=eq.${me.id}&select=id,vendor,label,hint,status,note,created_at,updated_at,checked_at&order=created_at`), [me.id], 10000);
   const [open, setOpen] = useState(null);          // { vendor, id } being given (id null: a new one)

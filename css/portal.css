@@ -220,5 +220,5 @@ a.pt-row:hover{border-color:rgba(125,162,255,.5);background:rgba(61,107,240,.08)
 .pt-loginact{display:flex;gap:6px;flex-shrink:0} .pt-loginact .pt-ghost{height:28px;padding:0 10px;font-size:12.5px}
 .pt-loginrow>.pt-note,.pt-loginrow>.pt-fine,.pt-loginrow>.pt-give{flex-basis:100%;margin-bottom:0}
 .pt-sec h2 em.q{font:500 11px var(--mono);font-style:normal;padding:1px 7px;border-radius:999px;border:1px solid var(--p-line2);color:var(--p-mut);margin-left:6px}
-.pt-why-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px 22px}
-.pt-why-list b{display:block;font-size:14px;font-weight:600;color:#E3E8F2;margin-bottom:4px} .pt-why-list p{margin:0;font-size:13px;line-height:1.75;color:#C9CFDA}
+.pt-why{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 16px;font-size:13px}
+.pt-why b{font-weight:600;color:#E3E8F2;margin-right:4px} .pt-why span{padding:3px 10px;border-radius:999px;border:1px solid rgba(74,222,156,.35);color:var(--p-pass)}
