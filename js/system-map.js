@@ -5,7 +5,8 @@
 // on top and writing and submission below. Particles stream along every hand-off; each
 // card names its role, agent and model; a click on a module, a store, a role or an agent
 // (or a hover on a line) shows what it touches. Canvas draws the motion, HTML the text.
-import { html, useState, useEffect, useRef, useMemo, L, LANG, view } from './core.js';
+import { html, useState, useEffect, useRef, useMemo, L, LANG } from './core.js';
+import { useData } from './screens/common.js';
 import { makeForest } from './forest-mini.js';
 
 const W = 1600, H = 980;
@@ -229,9 +230,10 @@ const wood = (id, o) => (WOODS[id] ||= makeForest(o));
 
 // ---------------------------------------------------------------- component
 export function SystemMap() {
-  // the last map seen is drawn at once on the next visit, then refreshed
-  const KEEP = 'ais.smap.' + LANG;
-  const [data, setData] = useState(() => { try { return JSON.parse(localStorage.getItem(KEEP)) || null; } catch { return null; } });
+  // The server's repo-scoped snapshot supplies the saved map. Browser storage
+  // cannot distinguish two repositories served from the same local origin.
+  const { data: response } = useData('systemmap', {}, { poll: 30000 });
+  const data = response?.systemmap || null;
   const [mode, setMode] = useState('all');
   const [sel, setSel] = useState(null);        // { type: module | store | role | agent, id }
   const [hover, setHover] = useState(null);
@@ -243,13 +245,6 @@ export function SystemMap() {
   const [settled, setSettled] = useState(false);      // the entrance has played; cards no longer animate in
   useEffect(() => { if (!shown) return; const t = setTimeout(() => setSettled(true), 2400); return () => clearTimeout(t); }, [shown]);
   const box = useRef(null), canvas = useRef(null), state = useRef({});
-  useEffect(() => {
-    let alive = true;
-    const load = () => view('systemmap').then((d) => { if (!alive) return; setData(d.systemmap); try { localStorage.setItem(KEEP, JSON.stringify(d.systemmap)); } catch {} }).catch(() => {});
-    load();
-    const t = setInterval(load, 30000);
-    return () => { alive = false; clearInterval(t); };
-  }, []);
   useEffect(() => {
     const el = box.current; if (!el) return;
     const io = new IntersectionObserver(([en]) => { if (en.isIntersecting) { setShown(true); io.disconnect(); } }, { threshold: 0.18 });

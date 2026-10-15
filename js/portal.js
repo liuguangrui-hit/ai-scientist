@@ -94,7 +94,7 @@ function Login({ q }) {
       const r = await api.signUp({ ...f, email: f.email.trim(), fullName: f.fullName.trim(), invite: f.invite.trim() });
       if (r.signedIn) {
         // the account cannot submit until a login is saved; if this fails the Agent logins page asks again
-        await api.rpc('set_agent_token', { vendor, secret: login }).catch(() => {});
+        await api.rpc('set_agent_token', { vendor, secret: login }).catch((e) => { try { sessionStorage.setItem('aisp.loginErr', loginSaveProblem(e)); } catch {} });
         return done();
       }
       setMode('in');
@@ -688,7 +688,7 @@ const VENDORS = [
       signup ? L('回到这个页面，点下面的“粘贴”，填好其余各项后点“注册”。', 'Come back here, click Paste below, fill in the rest and click Register.') : L('回到这个页面，点下面的“粘贴”，再点“保存”。', 'Come back here, click Paste below, then Save.'),
     ] },
   { id: 'codex', name: 'Codex', place: '{ "tokens": { … } }', file: true,
-    need: () => L('需要 ChatGPT Plus 或 Pro 订阅，电脑上装好 Codex（codex 命令）。这是单独的一次登录，不影响你平时用的 Codex。', 'Needs a ChatGPT Plus or Pro subscription and Codex (the codex command). This is a separate login; your usual Codex is not affected.'),
+    need: () => L('需要 ChatGPT Plus 或 Pro 订阅，电脑上装好 Codex（codex 命令）。这是单独的一次登录，不影响你平时用的 Codex。校内站和校外站各生成一份，不要填同一份。', 'Needs a ChatGPT Plus or Pro subscription and Codex (the codex command). This is a separate login; your usual Codex is not affected. Make one for each site; do not give both sites the same one.'),
     steps: (os, signup) => [
       L(...TERMINAL[os]),
       html`${L('复制下面的命令，粘贴到终端里，按回车。', 'Copy this command, paste it into the terminal and press Return.')}<${Cmd} text=${CODEX_CMD[os]} />`,
@@ -720,6 +720,12 @@ function LoginSteps({ v, val, setVal, onErr, signup }) {
 }
 
 const MAX_LOGINS = 5;
+const loginSaveProblem = (e) => {
+  const m = problem(e);
+  if (/another account/.test(m)) return L('这个登录已经被另一个账号使用了。一个登录只能属于一个人，请用你自己的账号生成。', 'This login is already used by another account. A login belongs to one person; make one with your own account.');
+  if (/already saved/.test(m)) return L('这个登录已经添加过了。要加另一个订阅，请先用那个账号登录再生成。', 'This login is already saved. For another subscription, sign in with that account first, then make the login.');
+  return m;
+};
 // Why give more than one, in a few words.
 const WhyMore = () => html`<div class="pt-why"><b>${L('多提供几个登录', 'Give more logins')}</b>${[L('审计更准', 'sharper audits'), L('质量更高', 'better results'), L('避免中断', 'no stalls')].map((x) => html`<span>${x}</span>`)}</div>`;
 
@@ -729,7 +735,7 @@ function Agents({ me, setup, onDone }) {
   const [val, setVal] = useState('');
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState('');
+  const [err, setErr] = useState(() => { try { const m = sessionStorage.getItem('aisp.loginErr') || ''; sessionStorage.removeItem('aisp.loginErr'); return m; } catch { return ''; } });
   useEffect(() => { document.title = L('Agent 登录 · AI Scientist', 'Agent logins · AI Scientist'); }, [LANG]);
   const have = d.data || [];
   const begin = (vendor, t) => { setOpen(open && open.vendor === vendor && open.id === (t?.id || null) ? null : { vendor, id: t?.id || null }); setVal(''); setName(t?.label || ''); setErr(''); };
@@ -739,7 +745,7 @@ function Agents({ me, setup, onDone }) {
     if (bad) { setErr(bad); return; }
     setBusy(true); setErr('');
     try { await api.rpc('set_agent_token', { vendor: open.vendor, secret: val, login: open.id, label: name }); setVal(''); setOpen(null); d.reload(); onDone?.(); }
-    catch (e2) { setErr(/already saved/.test(problem(e2)) ? L('这个登录已经添加过了。要加另一个订阅，请先用那个账号登录再生成。', 'This login is already saved. For another subscription, sign in with that account first, then make the login.') : problem(e2)); }
+    catch (e2) { setErr(loginSaveProblem(e2)); }
     finally { setBusy(false); }
   }
   const drop = (v, t) => confirm(L(`删除${v.name}登录「${t.label || t.hint}」？之后你的任务不能再用它运行。`, `Remove the ${v.name} login "${t.label || t.hint}"? Your tasks can no longer run on it.`))

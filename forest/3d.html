@@ -132,6 +132,8 @@ if (new URLSearchParams(location.search).get('lang') === 'en') {
 <script src="lib/data.js"></script>
 <script src="lib/palette.js"></script>
 <script src="lib/sim.js"></script>
+<script src="lib/layout3d.js"></script>
+<script src="lib/prewarmed3d.js"></script>
 <script src="lib/real.js"></script>
 <script>
 (function () {
@@ -383,64 +385,19 @@ let RING = 800;
 const cam = { yaw: 0.6, pitch: 0.34, dist: 1600, tx: 0, ty: 120, tz: 0, vyaw: 0, vpitch: 0, want: { dist: 1100, pitch: 0.34, tx: 0, ty: 120, tz: 0 } };
 
 function seedWorld(seed, count) {
+  const startedAt = performance.now();
   F = Forest.REAL || Forest.build({ ideas: count, seed });
+  const layout = Forest.layout3D.prepare(F, { count, lang: LG, rootY: ROOT_Y, layer: LAYER });
+  ({ sim, index, ideaIdx, clusterOf, groves } = layout);
   N = F.hyps.length;
-  index = new Map(F.hyps.map((h, i) => [h.id, i]));
-  ideaIdx = new Map(F.ideas.map((d, i) => [d.id, i]));
-  clusterOf = new Int32Array(N);
-  F.hyps.forEach((h, i) => { clusterOf[i] = h.ideas.length > 1 ? -1 : (ideaIdx.get(h.ideas[0]) ?? 0); });
+  const ring = RING = layout.ring;
   themeRgb = {};
   for (const t of F.themes) themeRgb[t.id] = P.hueRgb(t.hue, 80, 62);
-
-  const links = F.edges.map((e) => ({ a: index.get(e.a), b: index.get(e.b), k: e.kind === 'tree' ? 0.05 : 0.0006, len: e.kind === 'tree' ? 30 : 520, kind: e.kind }))
-    .filter((l) => l.a != null && l.b != null);
-  sim = new Sim({ dim: 3, tree3d: true, repel: 620, gravity: 0.00008, cluster: 0.002, anchor: 0.02, radial: 0.08, vert: 0.14,
-    damping: 0.955, maxV: 34, maxF: 3.2, separate: 190, sharedK: 0.04, theta: 1.0 });
-  sim.load(N, links, clusterOf, F.ideas.length);
-  sim.shared = [];
-  F.hyps.forEach((h, i) => { if (h.ideas.length > 1) sim.shared.push({ i, cs: h.ideas.map((id) => ideaIdx.get(id)).filter((x) => x != null) }); });
-
-  // 六片林子围成一圈，林子里的树按黄金角铺开
-  const themes = F.themes.map((t) => t.id);
-  // a real forest has a handful of trees, not dozens: keep them close and the camera near
-  const ring = F.real ? 170 : 300 + count * 9;
-  RING = ring;
-  groves = [];
-  themes.forEach((tid, t) => {
-    const th = (t / themes.length) * Math.PI * 2;
-    const gx = Math.cos(th) * ring, gz = Math.sin(th) * ring;
-    const list = F.ideas.filter((d) => d.theme === tid);
-    groves.push({ theme: tid, x: gx, z: gz, hue: F.themes[t].hue, name: F.themes[t][LG] });
-    list.forEach((d, k) => {
-      const a = k * 2.39996323 + th, r = (F.real ? 120 : 104) * Math.sqrt(k + 0.3);
-      d.ax = gx + Math.cos(a) * r; d.az = gz + Math.sin(a) * r;
-    });
-  });
-  F.ideas.forEach((d, i) => { sim.canchor[i * 3] = d.ax; sim.canchor[i * 3 + 1] = 0; sim.canchor[i * 3 + 2] = d.az; });
-
-  for (let i = 0; i < N; i++) {
-    const h = F.hyps[i], dep = h.depth || 0;
-    if (clusterOf[i] < 0) {                     // 共享假设：位于引用它的各树之间，高于顶层节点
-      const ds = h.ideas.map((id) => F.ideas[ideaIdx.get(id)]).filter(Boolean);
-      sim.height[i] = ROOT_Y + (dep + 1.6 + h.ideas.length * 0.45) * LAYER;
-      sim.pos[i * 3] = ds.reduce((a, d) => a + d.ax, 0) / ds.length;
-      sim.pos[i * 3 + 2] = ds.reduce((a, d) => a + d.az, 0) / ds.length;
-      sim.pos[i * 3 + 1] = sim.height[i];
-      continue;
-    }
-    const d = F.ideas[clusterOf[i]];
-    sim.height[i] = ROOT_Y + dep * LAYER + (h.leaf ? 8 : 0);
-    // 窄而高的树形：一层一层往上长，像雪松
-    sim.radius[i] = dep === 0 ? 0 : 6 + dep * 13 + (h.leaf ? 5 : 0);
-    const a = Math.random() * 6.2832;
-    sim.pos[i * 3] = d.ax + Math.cos(a) * sim.radius[i];
-    sim.pos[i * 3 + 2] = d.az + Math.sin(a) * sim.radius[i];
-    sim.pos[i * 3 + 1] = 0;                      // 从地面长出来
-  }
-  sim.reheat(1);
-  // 开头那段模拟最剧烈：节点从地面被高度弹簧一把拽上去、过冲、再回弹，画出来就是「抖一下」。
-  // 这段先在屏幕外跑完；剩下的平缓收敛藏在下面的生长动画里。
-  for (let k = 0; sim.alpha > 0.25 && k < 400; k++) sim.step(0.016);
+  // Reuse a fully simulated default forest. This restores the solver's Float64
+  // state, not a picture: growth, camera, bloom, forces and interaction stay live.
+  const saved = !F.real && seed === 20260921 && Forest.prewarmed3D?.[count];
+  const restored = saved && Forest.layout3D.restore(sim, saved, Forest.layout3D.signature(F, count));
+  if (!restored) Forest.layout3D.prewarm(sim);
   const delay = new Float32Array(N);
   let last = 0;
   for (let i = 0; i < N; i++) {
@@ -453,7 +410,7 @@ function seedWorld(seed, count) {
   // 开场：从高处俯冲下来，停在略高于树梢的位置
   cam.dist = ring * (QUICK ? 2.9 : 4.2); cam.want.dist = ring * 2.45 * heroDist(); cam.want.ty = 110; cam.want.pitch = VIEW_PITCH; cam.pitch = QUICK ? VIEW_PITCH + 0.22 : 1.1; cam.vpitch = -0.004;
   drawHud();
-  window.__forest3 = { sim, F, cam, project: (x, y, z) => project(x, y, z), ray: (x, y) => ray(x, y), M, get vp() { return vp; }, get eye() { return eye; }, get shown() { return VP; } };
+  window.__forest3 = { sim, F, cam, initialization: { mode: restored ? 'snapshot' : 'solver', ms: performance.now() - startedAt }, project: (x, y, z) => project(x, y, z), ray: (x, y) => ray(x, y), M, get vp() { return vp; }, get eye() { return eye; }, get shown() { return VP; } };
 }
 
 // ================================================================ 每帧装配几何

@@ -1,5 +1,6 @@
 // Shared client core: API, live updates, formatting, labels, small components.
 import { html, render, useState, useEffect, useRef, useMemo, useCallback } from '../vendor/preact-htm.js';
+import { createViewRequests } from './view-requests.js';
 export { html, render, useState, useEffect, useRef, useMemo, useCallback };
 
 // ---------------------------------------------------------------- language
@@ -37,6 +38,11 @@ export function snapKey(screen, q = {}) {
 }
 
 // ---------------------------------------------------------------- api
+const viewRequests = createViewRequests(async (url) => {
+  const r = await fetch(url, { headers: { accept: 'application/json' } });
+  if (!r.ok) throw new Error('读取失败 ' + r.status);
+  return r.json();
+});
 export async function view(screen, q = {}) {
   if (SNAPSHOT) {
     // live servers, transcripts, raw documents and the paper browser are not in a snapshot
@@ -50,9 +56,8 @@ export async function view(screen, q = {}) {
   u.searchParams.set('screen', screen);
   u.searchParams.set('lang', LANG);
   for (const [k, v] of Object.entries(q)) if (v != null && v !== '') u.searchParams.set(k, v);
-  const r = await fetch(u, { headers: { accept: 'application/json' } });
-  if (!r.ok) throw new Error('读取失败 ' + r.status);
-  return r.json();
+  u.searchParams.sort();
+  return viewRequests.get(u.href);
 }
 export async function act(op, args = {}) {
   if (SNAPSHOT) { const body = { ok: false, msg: L('演示版只读：操作不会执行', 'Read-only demo: actions are not carried out') }; toast(body.msg, true); return body; }
@@ -61,11 +66,15 @@ export async function act(op, args = {}) {
     const r = await fetch('/api/act', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ op, args }) });
     body = await r.json();
   } catch { body = { ok: false, msg: '网络错误' }; }
+  if (body.ok) viewRequests.invalidate();
   toast(body.msg, !body.ok);
   return body;
 }
 export async function reset() {
-  if (SNAPSHOT) return; await fetch('/api/act', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ op: 'sandbox.reset' }) }); }
+  if (SNAPSHOT) return;
+  const r = await fetch('/api/act', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ op: 'sandbox.reset' }) });
+  if ((await r.json()).ok) viewRequests.invalidate();
+}
 export async function brief(q) {
   if (SNAPSHOT) return { ok: false, msg: L('演示版只读', 'Read-only demo') };
   const u = new URL('/api/brief', location.origin);
