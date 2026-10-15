@@ -395,7 +395,7 @@ function seedWorld(seed, count) {
   for (const t of F.themes) themeRgb[t.id] = P.hueRgb(t.hue, 80, 62);
   // Reuse a fully simulated default forest. This restores the solver's Float64
   // state, not a picture: growth, camera, bloom, forces and interaction stay live.
-  const saved = !F.real && seed === 20260921 && Forest.prewarmed3D?.[count];
+  const saved = !Forest.REAL && !F.real && seed === 20260921 && Forest.prewarmed3D?.[count];
   const restored = saved && Forest.layout3D.restore(sim, saved, Forest.layout3D.signature(F, count));
   if (!restored) Forest.layout3D.prewarm(sim);
   const delay = new Float32Array(N);
@@ -881,6 +881,14 @@ function showTip(i, x, y) {
 }
 function moveTip(x, y) { tip.style.left = Math.min(W - 330, x + 16) + 'px'; tip.style.top = (y + 18) + 'px'; }
 
+// Historical propositions retain their source status in the evidence inspector.
+function historicalEvidence(e) {
+  if (!e.status) return '';
+  const text = (LG === 'en' ? 'Original status: ' : '原状态：') + e.status + (LG === 'en' ? ' · Original claim: ' : ' · 原命题：') + (e.claim || '');
+  const escaped = text.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  return '<div style="display:block;overflow-wrap:anywhere">' + escaped + '</div>';
+}
+
 const inspect = document.getElementById('inspect'), inspectBody = document.getElementById('inspectBody');
 function selectNode(i) {
   selected = i;
@@ -890,17 +898,18 @@ function selectNode(i) {
   inspectBody.innerHTML =
     '<div class="id" style="color:' + P.css(S[h.status].rgb) + '">' + h.id + ' · ' + S[h.status][LG] + '</div>' +
     '<div class="claim">' + h.claim[LG] + '</div>' +
+    (h.collections?.length ? '<div class="row"><span class="chip">' + (LG === 'en' ? 'Report collection citations: ' : '报告集合引用：') + h.collections.length + (LG === 'en' ? ' · members excluded from support votes' : ' · 成员不计独立支持票') + '</span></div>' : '') +
     '<div class="row"><span class="chip mono">' + (LG === 'en' ? 'total ' : '累积 ') + (h.score > 0 ? '+' : '') + h.score + '</span><span class="chip">' + (LG === 'en' ? 'evidence ' : '证据 ') + h.evidence.length + '</span>' +
     (h.ideas.length > 1 ? '<span class="chip" style="background:rgba(255,236,190,.14);color:#FFE7B3">' + (LG === 'en' ? 'shared · cited by ' + h.ideas.length + ' ideas' : '共享假设 · 被 ' + h.ideas.length + ' 个 idea 引用') + '</span>' : '<span class="chip">' + (LG === 'en' ? 'layer ' + (h.depth || 0) : '树内第 ' + (h.depth || 0) + ' 层') + '</span>') + '</div>' +
     '<div class="row">' + ideas.map((d) => '<span class="chip mono" style="color:' + P.hsl(d.hue, 70, 74) + '">' + d.id + ' ' + d.name[LG] + '</span>').join('') + '</div>' +
     (h.evidence.length ? '<div class="ev">' + h.evidence.slice(0, 14).map((e) =>
-      '<div><span style="font-family:\'IBM Plex Mono\',monospace;color:#5C6883">' + e.id + '</span><span>' + e.idea + '</span><b style="color:' + (e.delta > 0 ? '#6EE7B7' : '#FB7185') + '">' + (e.delta > 0 ? '+' : '') + e.delta + '</b></div>').join('') + '</div>' : '');
+      '<div><span style="font-family:\'IBM Plex Mono\',monospace;color:#5C6883">' + e.id + '</span><span>' + e.idea + '</span><b style="color:' + (e.delta > 0 ? '#6EE7B7' : '#FB7185') + '">' + (e.delta > 0 ? '+' : '') + e.delta + '</b></div>' + historicalEvidence(e)).join('') + '</div>' : '');
   inspect.classList.add('on');
 }
 
 function drawHud() {
   const s = F.stats;
-  document.getElementById('stats').innerHTML = (LG === 'en' ? [[s.ideas, 'ideas (trees)'], [s.hyps, 'hypotheses'], [s.shared, 'shared'], [s.edges, 'edges'], [s.evidence, 'evidence'], [s.pending, 'pending verdict']] : [[s.ideas, 'idea（树）'], [s.hyps, '假设'], [s.shared, '共享假设'], [s.edges, '边'], [s.evidence, '证据'], [s.pending, '待裁定']])
+  document.getElementById('stats').innerHTML = (LG === 'en' ? [[s.ideas, 'ideas (trees)'], [s.hyps, 'hypotheses'], [s.shared, 'shared'], [s.edges, 'edges'], [s.evidence, 'evidence'], ...(s.collections ? [[s.collections, 'collection citations']] : []), [s.pending, 'pending verdict']] : [[s.ideas, 'idea（树）'], [s.hyps, '假设'], [s.shared, '共享假设'], [s.edges, '边'], [s.evidence, '证据'], ...(s.collections ? [[s.collections, '集合引用']] : []), [s.pending, '待裁定']])
     .map(([v, k]) => '<div class="stat"><b>' + v.toLocaleString() + '</b><span>' + k + '</span></div>').join('');
   const counts = {}; for (const h of F.hyps) counts[h.status] = (counts[h.status] || 0) + 1;
   document.getElementById('legend').innerHTML = Object.keys(S).filter((k) => counts[k]).map((k) =>
