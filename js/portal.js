@@ -290,6 +290,68 @@ function Submit({ me }) {
   <//>`;
 }
 
+// ---------------------------------------------------------------- reading results in the page
+// PDFs page by page, Markdown as a formatted page, images as they are; the libraries load on first use.
+const LIBS = {};
+const load = (src) => (LIBS[src] ||= new Promise((ok, no) => { const t = document.createElement('script'); t.src = src; t.onload = ok; t.onerror = () => { delete LIBS[src]; no(new Error(src)); }; document.head.appendChild(t); }));
+const PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
+const kindOf = (name) => { const e = (name.split('.').pop() || '').toLowerCase(); return e === 'pdf' ? 'pdf' : e === 'md' || e === 'txt' ? 'text' : ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'].includes(e) ? 'image' : null; };
+
+function Viewer({ f }) {
+  const box = useRef(null);
+  const [state, setState] = useState('loading');
+  useEffect(() => {
+    let gone = false;
+    (async () => {
+      const url = await api.signedUrl(f.path);
+      const kind = kindOf(f.name);
+      if (kind === 'image') { box.current.innerHTML = ''; const im = new Image(); im.src = url; im.alt = f.name; box.current.appendChild(im); }
+      else if (kind === 'text') {
+        await Promise.all([load('https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js'), load('https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js')]);
+        const text = await (await fetch(url)).text();
+        if (gone) return;
+        box.current.innerHTML = window.DOMPurify.sanitize(f.name.endsWith('.txt') ? '<pre>' + text.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]) + '</pre>' : window.marked.parse(text));
+        box.current.querySelectorAll('a[href]').forEach((a) => { a.target = '_blank'; a.rel = 'noopener'; });
+      } else if (kind === 'pdf') {
+        await load(PDFJS + 'pdf.min.js');
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS + 'pdf.worker.min.js';
+        const doc = await window.pdfjsLib.getDocument(url).promise;
+        box.current.innerHTML = '';
+        const width = box.current.clientWidth, ratio = Math.min(window.devicePixelRatio || 1, 2);
+        for (let n = 1; n <= doc.numPages && !gone; n++) {
+          const page = await doc.getPage(n);
+          const vp = page.getViewport({ scale: (width / page.getViewport({ scale: 1 }).width) * ratio });
+          const c = document.createElement('canvas');
+          c.width = vp.width; c.height = vp.height;
+          box.current.appendChild(c);
+          await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+        }
+      }
+      if (!gone) setState('ready');
+    })().catch(() => { if (!gone) setState('failed'); });
+    return () => { gone = true; };
+  }, [f.path]);
+  return html`<div class=${'pt-view ' + kindOf(f.name)}>
+    ${state === 'loading' && html`<div class="pt-wait">${L('载入中', 'Loading')}</div>`}
+    ${state === 'failed' && html`<div class="pt-wait">${L('无法在页面中显示，请下载查看', 'Cannot show it here; download it instead')}</div>`}
+    <div ref=${box} class=${kindOf(f.name) === 'text' ? 'pt-doc' : 'pt-pages'}></div>
+  </div>`;
+}
+
+function Result({ f, open, stageName }) {
+  const [shown, setShown] = useState(!!open && !!kindOf(f.name));
+  const viewable = !!kindOf(f.name);
+  return html`<div class=${'pt-result' + (shown ? ' open' : '')}>
+    <div class="pt-result-hd">
+      <button class="pt-result-name" disabled=${!viewable} onClick=${() => setShown(!shown)}>
+        ${I('file', { s: 15 })}<span class="ell">${f.name}</span>${f.stage && html`<span class="tagx">${stageName(f.stage)}</span>`}
+        ${viewable && html`<span class="pt-chev">${shown ? L('收起', 'Hide') : L('查看', 'View')}</span>`}</button>
+      <button class="pt-ghost" onClick=${() => api.download(f.path, f.name).catch((e) => alert(problem(e)))}>${I('down', { s: 14 })}${L('下载', 'Download')}</button>
+    </div>
+    ${shown && html`<${Viewer} f=${f} />`}
+  </div>`;
+}
+
 // ---------------------------------------------------------------- my tasks
 function Tasks({ me }) {
   // this site's tasks, plus the copies of the member's tasks on the other site (kept by the sync job)
@@ -363,7 +425,7 @@ function RemoteTask({ me, q }) {
 
     ${results.length > 0 && html`<section class="pt-card glow">
       <div class="pt-sec"><h2>${L('产出', 'Results')}</h2></div>
-      <div class="pt-files">${results.map(FileRow)}</div>
+      <div class="pt-results">${results.map((f, i) => html`<${Result} f=${f} open=${i === results.length - 1} stageName=${title} />`)}</div>
     </section>`}
 
     ${task.description && html`<section class="pt-card">
@@ -383,7 +445,7 @@ function Task({ me, q }) {
   const d = useLoad(() => Promise.all([
     api.rows(`tasks?id=eq.${q.id}&select=*`).then((r) => r[0] || null),
     api.rows(`task_events?task_id=eq.${q.id}&select=*&order=at`),
-    api.rows(`task_files?task_id=eq.${q.id}&select=*&order=created_at`),
+    api.rows(`task_files?task_id=eq.${q.id}&hidden=is.false&select=*&order=created_at`),
     api.stages(),
     api.rows(`tasks?id=eq.${q.id}&select=owner`).then((r) => (r[0] ? Promise.all([
       api.rows(`agent_tokens?owner=eq.${r[0].owner}&select=vendor,status,note`),
@@ -443,7 +505,7 @@ function Task({ me, q }) {
 
     ${results.length > 0 && html`<section class="pt-card glow">
       <div class="pt-sec"><h2>${L('产出', 'Results')}</h2></div>
-      <div class="pt-files">${results.map(FileRow)}</div>
+      <div class="pt-results">${results.map((f, i) => html`<${Result} f=${f} open=${i === results.length - 1} stageName=${title} />`)}</div>
     </section>`}
 
     <div class="pt-two">

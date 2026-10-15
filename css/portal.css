@@ -100,6 +100,32 @@
 .pt-terms-h{margin:0 0 12px;font-size:17px;font-weight:600}
 .pt-terms{margin:0 0 18px;line-height:1.85;color:#C9CFDA;font-size:14px}
 
+/* results read in the page */
+.pt-results{display:flex;flex-direction:column;gap:10px}
+.pt-result{border:1px solid var(--p-line);border-radius:10px;background:rgba(0,0,0,.2);overflow:hidden}
+.pt-result.open{border-color:rgba(125,162,255,.45)}
+.pt-result-hd{display:flex;align-items:center;gap:10px;padding:8px 10px 8px 4px}
+.pt-result-name{flex:1;min-width:0;display:flex;align-items:center;gap:10px;background:none;border:0;color:var(--p-ink);font:inherit;font-size:13.5px;text-align:left;padding:4px 8px;cursor:pointer}
+.pt-result-name:disabled{cursor:default}
+.pt-result-name .ell{flex:1}
+.pt-chev{font-size:12px;color:var(--p-acc);white-space:nowrap}
+.pt-view{border-top:1px solid var(--p-line);padding:16px}
+.pt-pages canvas,.pt-pages img{display:block;width:100%;height:auto;margin:0 auto 12px;border-radius:4px;background:#fff}
+.pt-doc{max-width:760px;margin:0 auto;color:#DDE3EE;font-size:15px;line-height:1.85;word-break:break-word}
+.pt-doc h1,.pt-doc h2,.pt-doc h3,.pt-doc h4{color:#fff;line-height:1.4;margin:1.4em 0 .6em}
+.pt-doc h1{font-size:22px} .pt-doc h2{font-size:19px} .pt-doc h3{font-size:16.5px} .pt-doc h4{font-size:15px}
+.pt-doc p,.pt-doc ul,.pt-doc ol{margin:.7em 0} .pt-doc li{margin:.25em 0}
+.pt-doc a{color:var(--p-acc)}
+.pt-doc blockquote{margin:1em 0;padding:4px 14px;border-left:3px solid rgba(125,162,255,.5);color:#B9C3D6}
+.pt-doc code{font-family:var(--mono);font-size:.88em;background:rgba(255,255,255,.07);padding:1px 5px;border-radius:4px}
+.pt-doc pre{background:rgba(0,0,0,.35);padding:12px 14px;border-radius:8px;overflow-x:auto;white-space:pre-wrap}
+.pt-doc pre code{background:none;padding:0}
+.pt-doc table{display:block;overflow-x:auto;border-collapse:collapse;margin:1em 0;font-size:13.5px;line-height:1.6}
+.pt-doc th,.pt-doc td{border:1px solid var(--p-line2);padding:6px 10px;vertical-align:top}
+.pt-doc th{background:rgba(255,255,255,.05);color:#fff}
+.pt-doc img{max-width:100%}
+@media (max-width:760px){.pt-view{padding:10px}.pt-doc{font-size:15px}}
+
 /* the flow chart */
 .pt-flow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:16px 26px}
 .pt-stage{position:relative;min-height:116px;text-align:left;padding:13px 14px 14px;border-radius:12px;border:1px solid var(--p-line);background:rgba(255,255,255,.025);

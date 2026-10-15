@@ -97,6 +97,14 @@ export async function attach(taskId, file, n) {
   }));
   return insert('task_files', { task_id: taskId, path, name: file.name.slice(0, 255), size: file.size });
 }
+// A short-lived address for reading a stored file in the page.
+export async function signedUrl(path, expiresIn = 900) {
+  const r = await read(await fetch(`${URL_}/storage/v1/object/sign/${BUCKET}/${objectPath(path)}`, {
+    method: 'POST', headers: await headers({ 'content-type': 'application/json' }), body: JSON.stringify({ expiresIn }),
+  }));
+  return `${URL_}/storage/v1${r.signedURL}`;
+}
+
 export async function download(path, name) {
   const r = await read(await fetch(`${URL_}/storage/v1/object/sign/${BUCKET}/${objectPath(path)}`, {
     method: 'POST', headers: await headers({ 'content-type': 'application/json' }), body: JSON.stringify({ expiresIn: 300 }),
