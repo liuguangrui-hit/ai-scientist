@@ -432,7 +432,7 @@ function RemoteTask({ me, q }) {
 
     ${results.length > 0 && html`<section class="pt-card glow">
       <div class="pt-sec"><h2>${L('产出', 'Results')}</h2></div>
-      <div class="pt-results">${results.map((f, i) => html`<${Result} f=${f} open=${i === results.length - 1} stageName=${title} />`)}</div>
+      <div class="pt-results">${results.map((f, i) => html`<${Result} f=${f} stageName=${title} />`)}</div>
     </section>`}
 
     ${task.description && html`<section class="pt-card">
@@ -512,7 +512,7 @@ function Task({ me, q }) {
 
     ${results.length > 0 && html`<section class="pt-card glow">
       <div class="pt-sec"><h2>${L('产出', 'Results')}</h2></div>
-      <div class="pt-results">${results.map((f, i) => html`<${Result} f=${f} open=${i === results.length - 1} stageName=${title} />`)}</div>
+      <div class="pt-results">${results.map((f, i) => html`<${Result} f=${f} stageName=${title} />`)}</div>
     </section>`}
 
     <div class="pt-two">
