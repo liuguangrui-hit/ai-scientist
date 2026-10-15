@@ -317,14 +317,21 @@ function Viewer({ f }) {
         window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS + 'pdf.worker.min.js';
         const doc = await window.pdfjsLib.getDocument(url).promise;
         box.current.innerHTML = '';
+        // a page is drawn only when it comes near the screen, so long papers stay light on a phone
         const width = box.current.clientWidth, ratio = Math.min(window.devicePixelRatio || 1, 2);
-        for (let n = 1; n <= doc.numPages && !gone; n++) {
-          const page = await doc.getPage(n);
+        const first = (await doc.getPage(1)).getViewport({ scale: 1 });
+        const draw = async (c) => {
+          const page = await doc.getPage(+c.dataset.n);
           const vp = page.getViewport({ scale: (width / page.getViewport({ scale: 1 }).width) * ratio });
-          const c = document.createElement('canvas');
-          c.width = vp.width; c.height = vp.height;
-          box.current.appendChild(c);
+          c.width = vp.width; c.height = vp.height; c.style.aspectRatio = '';
           await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+        };
+        const seen = new IntersectionObserver((rows) => rows.forEach((r) => { if (r.isIntersecting) { seen.unobserve(r.target); draw(r.target).catch(() => {}); } }), { rootMargin: '800px 0px' });
+        for (let n = 1; n <= doc.numPages; n++) {
+          const c = document.createElement('canvas');
+          c.dataset.n = n; c.style.aspectRatio = first.width + ' / ' + first.height;
+          box.current.appendChild(c);
+          seen.observe(c);
         }
       }
       if (!gone) setState('ready');
