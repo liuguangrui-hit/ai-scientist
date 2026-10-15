@@ -481,7 +481,7 @@ function Admin({ me, q }) {
     api.rows('invites?select=*,user:profiles!invites_used_by_fkey(full_name,email)&order=created_at.desc'),
     api.rows('profiles?select=*&order=created_at'),
     api.stages(),
-    api.rows('agent_tokens?select=owner,vendor,hint,status,updated_at').catch(() => []),
+    api.rows('agent_tokens?select=owner,vendor,label,hint,status,updated_at&order=created_at').catch(() => []),
     // the other site's tasks and members, as copied by the sync job (summaries only)
     api.rows(`remote_tasks?origin=eq.${OTHER}&select=id,origin,owner_email,title,status,stages,current_stage,created_at&order=created_at.desc`).catch(() => []),
     api.rows(`remote_profiles?origin=eq.${OTHER}&select=*&order=created_at`).catch(() => []),
@@ -501,7 +501,7 @@ function Admin({ me, q }) {
   const countOf = (p) => (p.origin === SITE ? mine.filter((t) => t.owner === p.id) : remote.filter((t) => t.owner_email === p.email)).length;
   const loginsOf = (id) => logins.filter((x) => x.owner === id);
   const Logins = ({ p }) => { const ls = loginsOf(p.id); return ls.length
-    ? html`<span class="pt-logins">${ls.map((x) => html`<span class="pt-login sm" title=${L('提供于 ', 'Given ') + when(x.updated_at)}><b>${x.vendor === 'claude' ? 'Claude' : 'Codex'}</b><span class="mono">${x.hint}</span><${LoginBadge} s=${x.status} /></span>`)}</span>`
+    ? html`<span class="pt-logins">${ls.map((x) => html`<span class="pt-login sm" title=${L('提供于 ', 'Given ') + when(x.updated_at)}><b>${x.vendor === 'claude' ? 'Claude' : 'Codex'}</b>${x.label && html`<span>${x.label}</span>`}<span class="mono">${x.hint}</span><${LoginBadge} s=${x.status} /></span>`)}</span>`
     : html`<span class=${p.token_required ? 'pt-badge fail' : 'mut'}>${p.token_required ? L('未提供登录', 'No login') : L('老用户，免提供', 'Early member, exempt')}</span>`; };
   const title = (id) => { const s = stages.find((x) => x.id === id); return s ? sl(s, 'title') : id; };
   const act = (p) => p.then(() => { setErr(''); d.reload(); }, (e) => setErr(problem(e)));
@@ -543,7 +543,8 @@ function Admin({ me, q }) {
             <button class="pt-btn sm" onClick=${() => decideThere(t, 'rejected')}>${L('退回', 'Return')}</button>`)}
       </div>` : html`<div class="pt-row">
         <a class="main" href=${href('/task?id=' + t.id)}><b class="ell">${t.title}</b>
-          <span class="mut">${t.who?.full_name || t.who?.email || '—'} · ${loginsOf(t.owner).map((x) => (x.vendor === 'claude' ? 'Claude' : 'Codex') + (x.status === 'failed' ? L('（不能用）', ' (broken)') : x.status === 'unchecked' ? L('（验证中）', ' (checking)') : '')).join(' / ') || L('无 Agent 登录', 'no agent login')}${t.stages.length ? ' · ' + t.stages.map(title).join(' · ') : ''}</span></a>
+          <span class="mut">${t.who?.full_name || t.who?.email || '—'} · ${['claude', 'codex'].map((v) => { const ls = loginsOf(t.owner).filter((x) => x.vendor === v); if (!ls.length) return ''; const ok = ls.filter((x) => x.status === 'ok').length;
+            return (v === 'claude' ? 'Claude' : 'Codex') + (ls.length > 1 ? '×' + ls.length : '') + (ok ? '' : ls.some((x) => x.status === 'unchecked') ? L('（验证中）', ' (checking)') : L('（不能用）', ' (broken)')); }).filter(Boolean).join(' / ') || L('无 Agent 登录', 'no agent login')}${t.stages.length ? ' · ' + t.stages.map(title).join(' · ') : ''}</span></a>
         ${t.status === 'running' && t.current_stage && html`<span class="now">${title(t.current_stage)}</span>`}
         <${Where} site=${t.origin} />
         <${Badge} s=${t.status} />
@@ -649,51 +650,67 @@ function LoginSteps({ v, val, setVal, onErr, signup }) {
     <div class="pt-actions"><button type="button" class="pt-btn sm" onClick=${paste}>${L('粘贴', 'Paste')}</button></div>`;
 }
 
+const MAX_LOGINS = 5;
 function Agents({ me, setup, onDone }) {
-  const d = useLoad(() => api.rows(`agent_tokens?owner=eq.${me.id}&select=vendor,hint,status,note,created_at,updated_at,checked_at`), [me.id], 10000);
-  const [open, setOpen] = useState('');
+  const d = useLoad(() => api.rows(`agent_tokens?owner=eq.${me.id}&select=id,vendor,label,hint,status,note,created_at,updated_at,checked_at&order=created_at`), [me.id], 10000);
+  const [open, setOpen] = useState(null);          // { vendor, id } being given (id null: a new one)
   const [val, setVal] = useState('');
+  const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   useEffect(() => { document.title = L('Agent 登录 · AI Scientist', 'Agent logins · AI Scientist'); }, [LANG]);
   const have = d.data || [];
-  const begin = (v) => { setOpen(open === v ? '' : v); setVal(''); setErr(''); };
-  async function save(e, vendor) {
+  const begin = (vendor, t) => { setOpen(open && open.vendor === vendor && open.id === (t?.id || null) ? null : { vendor, id: t?.id || null }); setVal(''); setName(t?.label || ''); setErr(''); };
+  async function save(e) {
     e.preventDefault();
-    const bad = loginProblem(vendor, val);
+    const bad = loginProblem(open.vendor, val);
     if (bad) { setErr(bad); return; }
     setBusy(true); setErr('');
-    try { await api.rpc('set_agent_token', { vendor, secret: val }); setVal(''); setOpen(''); d.reload(); onDone?.(); }
-    catch (e2) { setErr(problem(e2)); }
+    try { await api.rpc('set_agent_token', { vendor: open.vendor, secret: val, login: open.id, label: name }); setVal(''); setOpen(null); d.reload(); onDone?.(); }
+    catch (e2) { setErr(/already saved/.test(problem(e2)) ? L('这个登录已经添加过了。要加另一个订阅，请先用那个账号登录再生成。', 'This login is already saved. For another subscription, sign in with that account first, then make the login.') : problem(e2)); }
     finally { setBusy(false); }
   }
-  const drop = (v) => confirm(L(`删除 ${v.name} 登录？之后任务不能再用它运行。`, `Remove the ${v.name} login? Tasks can no longer run on it.`))
-    && api.rpc('delete_agent_token', { vendor: v.id }).then(d.reload, (e) => setErr(problem(e)));
+  const drop = (v, t) => confirm(L(`删除${v.name}登录「${t.label || t.hint}」？之后你的任务不能再用它运行。`, `Remove the ${v.name} login "${t.label || t.hint}"? Your tasks can no longer run on it.`))
+    && api.rpc('delete_agent_token', { login: t.id }).then(d.reload, (e) => setErr(problem(e)));
+  const rename = (t) => { const x = prompt(L('给这个登录起个名字，方便区分（最多 40 字）', 'A name for this login, to tell it apart (up to 40 characters)'), t.label || ''); if (x != null) api.rpc('rename_agent_token', { login: t.id, label: x }).then(d.reload, (e) => setErr(problem(e))); };
+  const form = (v) => html`<form class="pt-give" onSubmit=${save}>
+    <${Field} label=${L('名字（可不填）', 'Name (optional)')} hint=${L('比如：实验室 Max 号、我的 Plus。只有你和管理员看得到。', 'For example: lab Max plan, my Plus. Only you and the administrators see it.')}>
+      <input maxlength="40" value=${name} onInput=${(e) => setName(e.target.value)} /><//>
+    <${LoginSteps} v=${v} val=${val} setVal=${setVal} onErr=${setErr} />
+    <div class="pt-actions"><button type="button" class="pt-btn sm" onClick=${() => setOpen(null)}>${L('取消', 'Cancel')}</button>
+      <button class="pt-btn pri" disabled=${busy || !val.trim()}>${busy ? L('正在保存', 'Saving') : L('保存', 'Save')}</button></div>
+  </form>`;
   return html`<${Shell} me=${me} page="agents">
-    <${Head} title=${L('Agent 登录', 'Agent logins')} sub=${L('任务用你自己的 Claude Code 或 Codex 订阅运行，至少提供一个。', 'Tasks run on your own Claude Code or Codex subscription; give at least one.')} />
+    <${Head} title=${L('Agent 登录', 'Agent logins')} sub=${L('你的任务用你自己的 Claude Code 或 Codex 订阅运行。至少提供一个；有多个订阅可以都加上，每种最多 5 个，一个额度用完时任务自动换下一个。', 'Your tasks run on your own Claude Code or Codex subscriptions. Give at least one; if you have several subscriptions, add them all, up to 5 of each, and tasks move to the next when one runs out.')} />
     ${setup && html`<${Note}>${L('提交任务前，请先提供一个 Agent 登录。', 'Before you submit a task, give one agent login.')}<//>`}
-    ${!setup && !me.token_required && html`<p class="pt-fine left">${L('你注册得早，不提供也能提交；提供后任务用你自己的订阅运行。', 'Your account is older, so you can submit without one; once given, tasks run on your own subscription.')}</p>`}
+    ${!setup && !me.token_required && html`<p class="pt-fine left">${L('你的账号注册得早，不提供也能照常提交；提供以后，你的任务就用你自己的订阅运行。', 'Your account predates this requirement, so you can submit without a login; once you give one, your tasks run on your own subscription.')}</p>`}
     ${(err || d.error) && html`<${Note} bad>${err || d.error}<//>`}
     ${d.loading ? html`<div class="pt-wait">${L('载入中', 'Loading')}</div>` : VENDORS.map((v) => {
-      const t = have.find((x) => x.vendor === v.id);
+      const mine = have.filter((x) => x.vendor === v.id);
+      const adding = open && open.vendor === v.id && !open.id;
       return html`<section class="pt-card">
-        <div class="pt-sec"><h2>${v.name}</h2>
-          <div class="pt-quick">${t && html`<button type="button" class="pt-ghost" onClick=${() => drop(v)}>${L('删除', 'Remove')}</button>`}
-            <button type="button" class=${'pt-btn sm' + (t ? '' : ' pri')} onClick=${() => begin(v.id)}>${t ? L('更换', 'Replace') : L('提供', 'Give')}</button></div></div>
-        ${t ? html`<div class="pt-login"><b class="mono">${t.hint}</b><${LoginBadge} s=${t.status} />
-            <span class="mut num">${L('提供于 ', 'Given ') + when(t.updated_at)}${t.checked_at ? L('，最近使用 ', ', last used ') + when(t.checked_at) : ''}</span></div>
-            ${t.status === 'unchecked' && html`<p class="pt-fine left">${L('保存后会做一次小调用验证，一两分钟出结果，页面自动刷新。', 'After saving, one small call checks it; the result shows in a minute or two.')}</p>`}
-            ${t.status === 'failed' ? html`<${Note} bad>${t.note || L('这个登录不能用。', 'This login does not work.')}${L(' 点右上角“更换”，按步骤重新提供。', ' Click Replace and follow the steps again.')}<//>`
-              : t.note && html`<p class="pt-fine left">${t.note}</p>`}`
-          : html`<p class="mut">${L('还没有提供', 'Not given yet')}</p>`}
-        ${open === v.id && html`<form class="pt-give" onSubmit=${(e) => save(e, v.id)}>
-          <${LoginSteps} v=${v} val=${val} setVal=${setVal} onErr=${setErr} />
-          <div class="pt-actions"><button class="pt-btn pri" disabled=${busy || !val.trim()}>${busy ? L('正在保存', 'Saving') : L('保存', 'Save')}</button></div>
-        </form>`}
+        <div class="pt-sec"><h2>${v.name}${mine.length > 0 && html` <em class="q">${mine.length}</em>`}</h2>
+          <div class="pt-quick">${mine.length < MAX_LOGINS && html`<button type="button" class=${'pt-btn sm' + (mine.length ? '' : ' pri')} onClick=${() => begin(v.id, null)}>${mine.length ? L('再加一个', 'Add another') : L('提供', 'Give')}</button>`}</div></div>
+        ${!mine.length && !adding && html`<p class="mut">${L('还没有提供', 'Not given yet')}</p>`}
+        ${mine.map((t) => html`<div class="pt-loginrow">
+          <div class="pt-login info">${t.label && html`<b>${t.label}</b>`}<span class="mono">${t.hint}</span><${LoginBadge} s=${t.status} />
+            <span class="mut num">${L('提供于 ', 'Given ') + when(t.updated_at)}${t.checked_at ? L('，最近使用 ', ', last used ') + when(t.checked_at) : ''}</span>
+            </div>
+          <div class="pt-loginact"><button type="button" class="pt-ghost" onClick=${() => rename(t)}>${L('改名', 'Rename')}</button>
+            <button type="button" class="pt-ghost" onClick=${() => begin(v.id, t)}>${L('更换', 'Replace')}</button>
+            <button type="button" class="pt-ghost" onClick=${() => drop(v, t)}>${L('删除', 'Remove')}</button></div>
+          ${t.status === 'unchecked' && html`<p class="pt-fine left">${L('保存后系统会用它做一次很小的真实调用，确认能用，通常一两分钟内出结果，本页自动刷新。', 'After saving, the system makes one tiny real call with it to confirm it works. The result usually comes within a minute or two; this page refreshes by itself.')}</p>`}
+          ${t.status === 'failed' ? html`<${Note} bad>${t.note || L('这个登录不能用。', 'This login does not work.')}${L('点“更换”，按步骤重新提供。', ' Click Replace and follow the steps again.')}<//>`
+            : t.note && html`<p class="pt-fine left">${t.note}</p>`}
+          ${open && open.id === t.id && form(v)}
+        </div>`)}
+        ${adding && form(v)}
+        ${mine.length > 0 && v.id === 'codex' && html`<p class="pt-fine left">${L('加另一个 ChatGPT 账号时，先在浏览器里退出当前的 ChatGPT，再运行命令，用另一个账号登录。', 'To add another ChatGPT account, sign out of ChatGPT in the browser first, then run the command and sign in with the other account.')}</p>`}
+        ${mine.length > 0 && v.id === 'claude' && html`<p class="pt-fine left">${L('加另一个 Claude 账号时，先在浏览器里退出当前的 Claude，再运行命令，用另一个账号授权。', 'To add another Claude account, sign out of Claude in the browser first, then run the command and approve with the other account.')}</p>`}
       </section>`;
     })}
-    <${Note}>${L('任务和你平时用的是同一份额度：任务多时你自己用会更早到上限，反之亦然。这份登录是单独的，不会让你其他设备掉线。', 'Tasks share your subscription quota with your own use, so heavy use on either side reaches the limit sooner. This login is separate and does not sign out your other devices.')}<//>
-    <p class="pt-fine left">${L('登录加密保存，页面只显示首尾几位。只用来运行你自己的任务，额度用完会暂停等待恢复。可以随时在这里删除。', 'Logins are stored encrypted and only the first and last few characters are shown. They run only your own tasks; when the quota runs out, tasks wait. You can remove them here at any time.')}</p>
+    <${Note}>${L('任务和你平时使用共用同一份订阅额度：任务跑得多时，你自己在手机或电脑上用 Claude、Codex 可能更早碰到额度上限；反过来你用得多，任务也会暂停等待额度恢复。这里提供的是单独的一份登录，不会让你其他设备上的 Claude、Codex 掉线。', 'Tasks and your own use share one subscription quota: when tasks run a lot, you may reach your limit sooner on your phone or computer, and when you use a lot, tasks wait for the quota to come back. The login given here is a separate one; it does not sign out Claude or Codex on your other devices.')}<//>
+    <p class="pt-fine left">${L('登录加密保存。页面上只显示开头和结尾几位：你和管理员能看到你提供了哪些登录，看不到完整内容。系统只用它们运行你本人提交的任务；额度都用完时任务暂停，等额度恢复后继续，不会换用别人的账号。你可以随时在这里删除，或在 Claude、ChatGPT 的账户设置里注销这次登录。', 'Logins are stored encrypted. Pages show only the first and last few characters: you and the administrators can see which logins you gave, never the whole of them. They are used only for tasks you submit; when all run out the task waits for them to come back and never moves to someone else\'s account. Remove them here at any time, or sign these logins out in your Claude or ChatGPT account settings.')}</p>
   <//>`;
 }
 
